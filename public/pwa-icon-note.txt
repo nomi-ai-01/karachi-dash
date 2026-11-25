@@ -1,0 +1,15 @@
+PWA icons (pwa-192.png and pwa-512.png)
+
+Create them with any of these methods:
+
+1. Open favicon.svg in a browser, screenshot / export as PNG at 192x192 and 512x512.
+2. Use https://realfavicongenerator.net or https://www.pwabuilder.com/imageGenerator
+3. Image-generation prompt (Midjourney / DALL·E / Grok Imagine):
+
+"App icon for a mobile game called Karachi Dash. A colourful Pakistani auto-rickshaw with truck-art floral patterns, gold trim, red canopy, small Pakistani flag, cheerful style, centered on a deep teal background, flat design, no text, square, high contrast, 512x512"
+
+Place the resulting files as:
+  public/pwa-192.png
+  public/pwa-512.png
+
+Until then the game still runs; only the install icon is missing.

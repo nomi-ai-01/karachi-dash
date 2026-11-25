@@ -1,0 +1,13 @@
+{
+  "id": "/",
+  "name": "Karachi Dash",
+  "short_name": "Karachi Dash",
+  "description": "A colourful Pakistani truck-art rickshaw runner.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#092d35",
+  "theme_color": "#092d35",
+  "icons": []
+}

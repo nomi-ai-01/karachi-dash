@@ -57,7 +57,7 @@ export class KarachiDashGame {
   private runCoins = 0;
   private distance = 0;
 
-  private speed = GAME_CONFIG.movement.initialSpeed;
+  private speed: number = GAME_CONFIG.movement.initialSpeed;
 
   private elapsed = 0;
   private spawnTimer = 0;

@@ -59,10 +59,13 @@ button {
 #app {
   position: relative;
 
-  width: min(100vw, 420px);
-  height: min(100dvh, 780px);
+  width: min(100vw, 53.846dvh, 420px);
+
+  height: auto;
 
   aspect-ratio: 420 / 780;
+
+  max-height: 100dvh;
 
   overflow: hidden;
 

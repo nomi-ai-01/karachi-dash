@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 512 512">
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#126d70"/>
+      <stop offset="1" stop-color="#092d35"/>
+    </linearGradient>
+
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff7550"/>
+      <stop offset="1" stop-color="#b82e35"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <rect x="28" y="28" width="456" height="456"
+        rx="94" fill="none"
+        stroke="#ffc247" stroke-width="9"/>
+
+  <path d="M95 90H417M95 422H417"
+        stroke="#ffc247" stroke-width="7"
+        stroke-linecap="round"/>
+
+  <g fill="#ffc247">
+    <circle cx="95" cy="90" r="12"/>
+    <circle cx="417" cy="90" r="12"/>
+    <circle cx="95" cy="422" r="12"/>
+    <circle cx="417" cy="422" r="12"/>
+  </g>
+
+  <g transform="translate(256 270)">
+
+    <ellipse cx="0" cy="120" rx="133" ry="22"
+             fill="#061b20" opacity=".5"/>
+
+    <circle cx="-100" cy="100" r="38"
+            fill="#121e23" stroke="#ffc247" stroke-width="8"/>
+
+    <circle cx="100" cy="100" r="38"
+            fill="#121e23" stroke="#ffc247" stroke-width="8"/>
+
+    <path d="M-135 75L-112 -75Q-105 -125 -58 -125H58Q105 -125 112 -75L135 75Z"
+          fill="url(#body)"
+          stroke="#ffc247" stroke-width="10"/>
+
+    <path d="M-104 -73Q-95 -120 -53 -120H53Q95 -120 104 -73Z"
+          fill="#087e80"
+          stroke="#ffc247" stroke-width="8"/>
+
+    <path d="M-76 -83H76V-18H-76Z"
+          fill="#a9dcd0"
+          stroke="#ffc247" stroke-width="6"/>
+
+    <path d="M-100 5H100V57H-100Z"
+          fill="#087e80"
+          stroke="#ffc247" stroke-width="5"/>
+
+    <g fill="#ffc247">
+      <circle cx="-58" cy="31" r="12"/>
+      <circle cx="58" cy="31" r="12"/>
+      <circle cx="0" cy="31" r="12"/>
+    </g>
+
+    <g fill="#fff0cf">
+      <path d="M-58 12L-49 31L-58 50L-67 31Z"/>
+      <path d="M58 12L67 31L58 50L49 31Z"/>
+      <path d="M0 12L9 31L0 50L-9 31Z"/>
+    </g>
+
+    <circle cx="-119" cy="76" r="14" fill="#fff0cf"/>
+    <circle cx="119" cy="76" r="14" fill="#fff0cf"/>
+
+  </g>
+
+  <text x="256" y="463"
+        font-family="Arial,sans-serif"
+        font-size="36"
+        font-weight="900"
+        letter-spacing="5"
+        text-anchor="middle"
+        fill="#ffc247">KARACHI DASH</text>
+
+</svg>

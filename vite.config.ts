@@ -2,11 +2,10 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: './',
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'logo.png'],
+      includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Karachi Dash',
         short_name: 'KarachiDash',
@@ -15,8 +14,7 @@ export default defineConfig({
         background_color: '#0B1C2C',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: './',
-        scope: './',
+        start_url: '/',
         icons: [
           {
             src: 'pwa-192.png',
@@ -27,7 +25,6 @@ export default defineConfig({
             src: 'pwa-512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any',
           },
         ],
       },

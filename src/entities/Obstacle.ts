@@ -31,7 +31,19 @@ export class Obstacle {
     this.container = scene.add.container(x, y);
     this.graphics = scene.add.graphics();
     this.container.add(this.graphics);
-    this.draw();
+    const keyMap: Record<ObstacleKind, string> = {
+      bus: 'bus', minibus: 'minibus', cart: 'cart', manhole: 'manhole',
+      wire: 'wire_banner', thela: 'thela', cricket: 'cricket_ball',
+    };
+    const key = keyMap[def.kind];
+    if (scene.textures.exists(key)) {
+      const img = scene.add.image(0, 0, key);
+      const k = Math.min((def.width * 1.25) / img.width, (def.height * 1.25) / img.height);
+      img.setScale(k);
+      this.container.add(img);
+    } else {
+      this.draw();
+    }
     this.container.setDepth(30);
   }
 

@@ -30,6 +30,12 @@ export class PowerUp {
     this.kind = kind;
     this.container = scene.add.container(x, y);
 
+    const realKey = `power_${kind}`;
+    if (scene.textures.exists(realKey)) {
+      this.container.add(scene.add.image(0, 0, realKey).setDisplaySize(48, 48));
+      this.container.setDepth(28);
+      return;
+    }
     const g = scene.add.graphics();
     g.fillStyle(COLORS[kind], 1);
     g.fillRoundedRect(-22, -22, 44, 44, 10);

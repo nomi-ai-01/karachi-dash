@@ -33,6 +33,11 @@ export class Rickshaw {
   private invuln = 0;
   private lean = 0;
   private tasselPhase = 0;
+  private hasSprite = false;
+  private drvHead?: Phaser.GameObjects.Container;
+  private drvTorso?: Phaser.GameObjects.Container;
+  private drvArmL?: Phaser.GameObjects.Container;
+  private drvArmR?: Phaser.GameObjects.Container;
 
   constructor(scene: Phaser.Scene, skin = 'classic') {
     const colors = SKINS[skin] || SKINS.classic;
@@ -40,9 +45,26 @@ export class Rickshaw {
     this.shadow = scene.add.image(0, 34, 'tex-shadow').setAlpha(0.45).setScale(1.1, 1);
     this.body = scene.add.container(0, 0);
     this.tasselGroup = scene.add.container(0, 0);
-    this.drawRickshaw(scene, colors);
+    const skinKey = scene.textures.exists(`rickshaw_${skin}`)
+      ? `rickshaw_${skin}`
+      : scene.textures.exists('rickshaw_classic')
+        ? 'rickshaw_classic'
+        : null;
+    if (skinKey) {
+      this.hasSprite = true;
+      this.buildDriver(scene);
+      const img = scene.add.image(0, 42, skinKey).setOrigin(0.5, 1);
+      img.setScale(112 / img.height);
+      this.body.add(img);
+    } else {
+      this.drawRickshaw(scene, colors);
+    }
     this.glowL = scene.add.image(-20, 6, 'tex-glow').setScale(0.7).setAlpha(0.7);
     this.glowR = scene.add.image(20, 6, 'tex-glow').setScale(0.7).setAlpha(0.7);
+    if (this.hasSprite) {
+      this.glowL.setPosition(-26, 2).setTint(0xff2a1a).setScale(0.5);
+      this.glowR.setPosition(26, 2).setTint(0xff2a1a).setScale(0.5);
+    }
     this.container.add([this.shadow, this.body, this.glowL, this.glowR]);
     this.container.setDepth(50);
   }
@@ -131,6 +153,55 @@ export class Rickshaw {
       this.tasselGroup.add(tassel);
     }
     this.body.add(this.tasselGroup);
+  }
+
+  /** Animated cartoon driver (back view), drawn behind the rickshaw image. */
+  private buildDriver(scene: Phaser.Scene) {
+    const shirt = 0x1e88a8;
+    const shirtDark = 0x14647c;
+    const skin = 0xe0a878;
+
+    const torso = scene.add.container(0, 0);
+    const tg = scene.add.graphics();
+    tg.fillStyle(shirt, 1);
+    tg.fillRoundedRect(-14, -33, 28, 22, 7);
+    tg.fillStyle(shirtDark, 1);
+    tg.fillRect(-0.7, -31, 1.4, 18);
+    tg.fillStyle(skin, 1);
+    tg.fillRect(-3, -35, 6, 4);
+    torso.add(tg);
+
+    const mkArm = (side: number) => {
+      const c = scene.add.container(side * 14.5, -29);
+      const ag = scene.add.graphics();
+      ag.fillStyle(shirt, 1);
+      ag.fillRoundedRect(-3.5, -3, 7, 13, 3);
+      ag.fillStyle(skin, 1);
+      ag.fillCircle(0, 11, 2.6);
+      c.add(ag);
+      return c;
+    };
+    const armL = mkArm(-1);
+    const armR = mkArm(1);
+
+    const head = scene.add.container(0, -38);
+    const hg = scene.add.graphics();
+    hg.fillStyle(skin, 1);
+    hg.fillCircle(-5.6, 1, 1.7);
+    hg.fillCircle(5.6, 1, 1.7);
+    hg.fillStyle(0x15100c, 1);
+    hg.fillCircle(0, 0, 5.8);
+    hg.fillStyle(0xf5f0e0, 1);
+    hg.fillEllipse(0, -3.4, 10.5, 5.5);
+    hg.fillStyle(0x01411c, 1);
+    hg.fillRect(-5, -2.2, 10, 1.2);
+    head.add(hg);
+
+    this.body.add([torso, armL, armR, head]);
+    this.drvTorso = torso;
+    this.drvArmL = armL;
+    this.drvArmR = armR;
+    this.drvHead = head;
   }
 
   getLane(): Lane { return this.lane; }
@@ -227,6 +298,17 @@ export class Rickshaw {
       this.body.setAlpha(1);
     }
     this.body.y = -speedFactor * 4;
+
+    if (this.hasSprite && this.drvHead && this.drvTorso && this.drvArmL && this.drvArmR) {
+      const t = Date.now() / 1000;
+      const k = 1 + speedFactor;
+      const turn = Phaser.Math.Clamp(this.lean * 40, -0.4, 0.4);
+      this.drvHead.y = -38 + Math.sin(t * 9) * 0.5 * k - (this.jumping ? 1.8 : 0);
+      this.drvHead.rotation = turn + Math.sin(t * 5) * 0.05;
+      this.drvTorso.rotation = turn * 0.4;
+      this.drvArmL.rotation = Math.sin(t * 10) * 0.12 * k + (this.jumping ? -0.5 : 0) + turn * 0.6;
+      this.drvArmR.rotation = -Math.sin(t * 10 + 1) * 0.12 * k + (this.jumping ? 0.5 : 0) + turn * 0.6;
+    }
   }
 
   getBounds(): Phaser.Geom.Rectangle {

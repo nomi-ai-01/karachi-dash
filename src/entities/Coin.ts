@@ -12,8 +12,11 @@ export class Coin {
   constructor(scene: Phaser.Scene, x: number, y: number, golden = false) {
     this.golden = golden;
     this.container = scene.add.container(x, y);
+    const realKey = golden ? 'coin_golden' : 'coin_chai';
     const key = golden ? 'tex-golden' : 'tex-coin';
-    if (scene.textures.exists(key)) {
+    if (scene.textures.exists(realKey)) {
+      this.container.add(scene.add.image(0, 0, realKey).setDisplaySize(golden ? 40 : 32, golden ? 40 : 32));
+    } else if (scene.textures.exists(key)) {
       this.container.add(scene.add.image(0, 0, key));
     } else {
       const g = scene.add.graphics();

@@ -1,42 +1,40 @@
-# Karachi Dash
+# Karachi Dash — 3-Lane Runner
 
-Fast one-thumb endless runner through the streets of Karachi.
+A mobile-first, three-lane endless runner set in a colorful, stylized Karachi railway world.
 
-## Quick start
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Features
+## Gameplay
 
-- 3-lane runner (swipe / keyboard)
-- 5 zones ~90–100s with star ratings
-- Police Chase boss, near-miss, revive
-- Shop (8 skins), daily missions, reward wheel
-- Share score, PWA-ready
-- Procedural art; optional PNGs in `public/assets/` (see `SPRITE_LIST.md`)
+- Three perspective railway lanes with sleepers and polished rails
+- Original cartoon runner character (rear view), running animation, lane switching, jump and slide
+- Stylized oncoming train obstacles, carts, barriers and track hazards
+- Collectible gold coins and power-ups
+- Five Karachi-inspired zones, missions, daily rewards, shop outfits and score saving
+- Swipe controls on phones; keyboard controls on desktop
+- 60 FPS Phaser rendering target and PWA support
 
-## Docs
+## Art direction
 
-| File | Content |
-|------|---------|
-| `BALANCE.md` | Tunable numbers & star rules |
-| `SPRITE_LIST.md` | Asset filenames + image prompts |
-| `CAPACITOR.md` | Android / iOS wrapper steps |
-
-## Build & deploy
-
-```bash
-npm run build
-# deploy dist/ to Vercel / Netlify / GitHub Pages
-```
-
-## Android
-
-See `CAPACITOR.md` — `npx cap add android` after build.
+This browser project is built with Phaser 3 (2D Canvas/WebGL) and uses a pseudo-3D perspective effect. It is not a true 3D model-based game engine build. The old photorealistic PNG props are no longer loaded; the runner, railway tracks, coins, trains and city scenery are drawn as consistent stylized game art.
 
 ## Controls
 
-Swipe ←→ lanes · ↑ jump · ↓ slide · P pause
+- Swipe left/right or arrow keys: change lane
+- Swipe up / Space / Up arrow: jump
+- Swipe down / Down arrow: slide
+- P / Escape: pause
+
+## Build
+
+```bash
+npm run typecheck
+npm run build
+```
+
+Deploy the generated `dist/` folder to GitHub Pages, Netlify or Vercel. See `CAPACITOR.md` for Android/iOS packaging.

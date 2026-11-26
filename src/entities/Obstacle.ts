@@ -24,6 +24,9 @@ export class Obstacle {
   depth = 0;
   lane = 0;
   private graphics: Phaser.GameObjects.Graphics;
+  private sprite?: Phaser.GameObjects.Image;
+  private t = Math.random() * 10;
+  private lively = false;
 
   constructor(scene: Phaser.Scene, def: ObstacleDef, x: number, y: number) {
     this.def = def;
@@ -38,9 +41,14 @@ export class Obstacle {
     const key = keyMap[def.kind];
     if (scene.textures.exists(key)) {
       const img = scene.add.image(0, 0, key);
-      const k = Math.min((def.width * 1.25) / img.width, (def.height * 1.25) / img.height);
+      const k = Math.min((def.width * 1.1) / img.width, (def.height * 1.1) / img.height);
       img.setScale(k);
-      this.container.add(img);
+      const sh = scene.add.graphics();
+      sh.fillStyle(0x000000, 0.38);
+      sh.fillEllipse(0, img.displayHeight * 0.46, img.displayWidth * 0.92, Math.max(8, img.displayHeight * 0.12));
+      this.container.add([sh, img]);
+      this.sprite = img;
+      this.lively = ['bus', 'minibus', 'cart', 'thela'].includes(def.kind);
     } else {
       this.draw();
     }
@@ -140,6 +148,14 @@ export class Obstacle {
     g.lineBetween(-6, 4, 6, -4);
   }
 
+  /** Gentle engine rumble / sway so vehicles feel alive while they approach. */
+  update(dt: number) {
+    if (!this.sprite || !this.lively) return;
+    this.t += dt;
+    this.sprite.y = -Math.abs(Math.sin(this.t * 16)) * 1.6;
+    this.sprite.rotation = Math.sin(this.t * 7) * 0.014;
+  }
+
   getBounds(): Phaser.Geom.Rectangle {
     const { width, height, action } = this.def;
     let yOff = 0;
@@ -162,11 +178,11 @@ export class Obstacle {
 
 export function randomObstacle(lane: number): ObstacleDef {
   const roll = Math.random();
-  if (roll < 0.22) return { kind: 'bus', lane, action: 'block', width: 70, height: 90 };
-  if (roll < 0.38) return { kind: 'minibus', lane, action: 'block', width: 55, height: 70 };
-  if (roll < 0.52) return { kind: 'cart', lane, action: 'block', width: 56, height: 40 };
-  if (roll < 0.68) return { kind: 'manhole', lane, action: 'jump', width: 52, height: 24 };
-  if (roll < 0.82) return { kind: 'wire', lane, action: 'slide', width: 100, height: 50 };
-  if (roll < 0.92) return { kind: 'thela', lane, action: 'block', width: 42, height: 50 };
-  return { kind: 'cricket', lane, action: 'jump', width: 28, height: 28 };
+  if (roll < 0.22) return { kind: 'bus', lane, action: 'block', width: 96, height: 124 };
+  if (roll < 0.38) return { kind: 'minibus', lane, action: 'block', width: 78, height: 100 };
+  if (roll < 0.52) return { kind: 'cart', lane, action: 'block', width: 84, height: 58 };
+  if (roll < 0.68) return { kind: 'manhole', lane, action: 'jump', width: 70, height: 32 };
+  if (roll < 0.82) return { kind: 'wire', lane, action: 'slide', width: 110, height: 56 };
+  if (roll < 0.92) return { kind: 'thela', lane, action: 'block', width: 62, height: 74 };
+  return { kind: 'cricket', lane, action: 'jump', width: 34, height: 34 };
 }

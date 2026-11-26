@@ -388,7 +388,7 @@ export class GameScene extends Phaser.Scene {
       const lanes = ([0, 1, 2] as Lane[]).filter((l) => l !== this.rickshaw.getLane());
       if (lanes.length) {
         const lane = pick(lanes);
-        const def = { kind: 'bus' as const, lane, action: 'block' as const, width: 70, height: 90 };
+        const def = { kind: 'bus' as const, lane, action: 'block' as const, width: 96, height: 124 };
         const obs = new Obstacle(this, def, this.depthToLaneX(lane, 0), this.depthToY(0));
         obs.depth = 0;
         obs.lane = lane;
@@ -523,7 +523,7 @@ export class GameScene extends Phaser.Scene {
       const count = randInt(1, 4);
       const golden = Math.random() < 0.08;
       for (let i = 0; i < count; i++) {
-        const d = i * 0.04;
+        const d = i * 0.1;
         const coin = new Coin(this, this.depthToLaneX(lane, d), this.depthToY(d), golden && i === 0);
         coin.depth = d;
         coin.lane = lane;
@@ -557,6 +557,7 @@ export class GameScene extends Phaser.Scene {
       o.container.y = this.depthToY(d);
       o.container.x = this.depthToLaneX(o.lane, d);
       o.container.setScale(this.depthToScale(d));
+      o.update(dt);
     }
     this.obstacles = this.obstacles.filter((o) => o.active);
 

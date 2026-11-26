@@ -21,6 +21,14 @@ export class MenuScene extends Phaser.Scene {
     writeSave(save);
 
     this.cameras.main.setBackgroundColor(PALETTE.midnight);
+    this.add
+      .text(CONFIG.VIEW_WIDTH - 14, CONFIG.VIEW_HEIGHT - 26, 'v5', {
+        fontFamily: 'Arial',
+        fontSize: '12px',
+        color: '#8fb3c9',
+      })
+      .setOrigin(1, 0.5)
+      .setDepth(100);
 
     const sky = this.add.graphics().setDepth(0);
     sky.fillGradientStyle(0x0b3d4c, 0x0b3d4c, 0x1a1a2e, 0x1a1a2e, 1);

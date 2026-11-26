@@ -27,9 +27,12 @@ export class Obstacle {
   private sprite?: Phaser.GameObjects.Image;
   private t = Math.random() * 10;
   private lively = false;
+  /** 1 = parked (moves with the road). <1 = driving away from the player. */
+  moveFactor = 1;
 
   constructor(scene: Phaser.Scene, def: ObstacleDef, x: number, y: number) {
     this.def = def;
+    this.moveFactor = { bus: 0.6, minibus: 0.5, cart: 0.35 }[def.kind as string] ?? 1;
     this.lane = def.lane;
     this.container = scene.add.container(x, y);
     this.graphics = scene.add.graphics();

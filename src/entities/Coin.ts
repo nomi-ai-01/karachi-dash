@@ -8,6 +8,8 @@ export class Coin {
   lane = 0;
   private spin = 0;
   private baseScale = 1;
+  private img?: Phaser.GameObjects.Image;
+  private size = 44;
 
   constructor(scene: Phaser.Scene, x: number, y: number, golden = false) {
     this.golden = golden;
@@ -15,7 +17,9 @@ export class Coin {
     const realKey = golden ? 'coin_golden' : 'coin_chai';
     const key = golden ? 'tex-golden' : 'tex-coin';
     if (scene.textures.exists(realKey)) {
-      this.container.add(scene.add.image(0, 0, realKey).setDisplaySize(golden ? 40 : 32, golden ? 40 : 32));
+      this.size = golden ? 56 : 46;
+      this.img = scene.add.image(0, 0, realKey).setDisplaySize(this.size, this.size);
+      this.container.add(this.img);
     } else if (scene.textures.exists(key)) {
       this.container.add(scene.add.image(0, 0, key));
     } else {
@@ -39,9 +43,15 @@ export class Coin {
   }
 
   update(dt: number) {
-    this.spin += dt * 4;
-    const pulse = 1 + Math.sin(this.spin) * 0.08;
-    this.container.setScale(this.baseScale * pulse);
+    this.spin += dt * 5;
+    this.container.setScale(this.baseScale);
+    if (this.img) {
+      // spin around the vertical axis like a real coin
+      const w = Math.max(0.12, Math.abs(Math.cos(this.spin)));
+      this.img.setDisplaySize(this.size * w, this.size);
+    } else {
+      this.container.setScale(this.baseScale * (1 + Math.sin(this.spin) * 0.08));
+    }
   }
 
   applyDepth(scale: number) {
@@ -50,7 +60,7 @@ export class Coin {
   }
 
   getBounds(): Phaser.Geom.Circle {
-    const r = (this.golden ? 16 : 12) * this.baseScale;
+    const r = (this.golden ? 24 : 20) * this.baseScale;
     return new Phaser.Geom.Circle(this.container.x, this.container.y, r);
   }
 

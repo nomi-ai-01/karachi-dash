@@ -140,9 +140,12 @@ export class GameScene extends Phaser.Scene {
 
     const bgKey = `bg_${this.worldId}`;
     if (this.textures.exists(bgKey)) {
-      const skyH = CONFIG.VIEW_HEIGHT * 0.28 + 40;
+      const skyH = CONFIG.VIEW_HEIGHT * 0.28 + 6;
       const bg = this.add.image(CONFIG.VIEW_WIDTH / 2, 0, bgKey).setOrigin(0.5, 0).setDepth(2);
       bg.setScale(skyH / bg.height);
+      const fade = this.add.graphics().setDepth(3);
+      fade.fillGradientStyle(0x6b6258, 0x6b6258, 0x6b6258, 0x6b6258, 0, 0, 1, 1);
+      fade.fillRect(0, skyH - 50, CONFIG.VIEW_WIDTH, 50);
       this.parallaxFar.setVisible(false);
       this.parallaxMid.setVisible(false);
       this.parallaxNear.setVisible(false);
@@ -319,7 +322,7 @@ export class GameScene extends Phaser.Scene {
     this.handleInput();
     this.rickshaw.update(dt, CONFIG.VIEW_WIDTH / 2, speedFactor);
 
-    this.roadOffset = (this.roadOffset + this.speed * dt) % 120;
+    this.roadOffset = (this.roadOffset + this.speed * dt) % 70;
     this.drawWorld();
     this.updateRain(dt);
     this.scrollParallax(dt);
@@ -473,8 +476,9 @@ export class GameScene extends Phaser.Scene {
     const cx = CONFIG.VIEW_WIDTH / 2;
     const roadBottomW = CONFIG.ROAD_WIDTH + 40;
     const roadTopW = 70;
-    const w = roadTopW + (roadBottomW - roadTopW) * depth;
-    return cx + (lane - 1) * 0.33 * w;
+    const tRoad = depth * ((CONFIG.PLAYER_Y - 0.28) / 0.72);
+    const w = roadTopW + (roadBottomW - roadTopW) * tRoad;
+    return cx + ((lane - 1) * w) / 3;
   }
 
   private handleInput() {
@@ -1017,42 +1021,71 @@ export class GameScene extends Phaser.Scene {
     const roadBottomW = CONFIG.ROAD_WIDTH + 40;
     const roadTopW = 70;
     const world = WORLDS.find((w) => w.id === this.worldId) || WORLDS[0];
+    const wAt = (t: number) => roadTopW + (roadBottomW - roadTopW) * t;
+    const yAt = (t: number) => horizon + (H - horizon) * t;
+    const mix = (c1: number, c2: number, k: number) => {
+      const r = ((c1 >> 16) & 255) * (1 - k) + ((c2 >> 16) & 255) * k;
+      const gg = ((c1 >> 8) & 255) * (1 - k) + ((c2 >> 8) & 255) * k;
+      const b = (c1 & 255) * (1 - k) + (c2 & 255) * k;
+      return (Math.round(r) << 16) | (Math.round(gg) << 8) | Math.round(b);
+    };
 
     this.bgGraphics.fillGradientStyle(world.skyTop, world.skyTop, world.skyBot, world.skyBot, 1);
     this.bgGraphics.fillRect(0, 0, W, horizon + 40);
-    const ground =
-      world.weather === 'evening' ? 0x2a3540 : world.weather === 'dust' ? 0x4a5a38 : 0x3a5a40;
-    this.bgGraphics.fillStyle(ground, 1);
+    this.bgGraphics.fillGradientStyle(0x6b6258, 0x6b6258, 0x2a2622, 0x2a2622, 1);
     this.bgGraphics.fillRect(0, horizon, W, H - horizon);
 
-    g.fillStyle(0x2a2a2a, 1);
-    g.beginPath();
-    g.moveTo(cx - roadTopW / 2, horizon);
-    g.lineTo(cx + roadTopW / 2, horizon);
-    g.lineTo(cx + roadBottomW / 2, H);
-    g.lineTo(cx - roadBottomW / 2, H);
-    g.closePath();
-    g.fillPath();
+    // Footpaths on both sides
+    for (const side of [-1, 1]) {
+      g.fillStyle(0x8d8478, 1);
+      g.beginPath();
+      g.moveTo(cx + (side * wAt(0)) / 2, horizon);
+      g.lineTo(cx + side * (wAt(0) / 2 + 14), horizon);
+      g.lineTo(cx + side * (wAt(1) / 2 + 95), H);
+      g.lineTo(cx + (side * wAt(1)) / 2, H);
+      g.closePath();
+      g.fillPath();
+    }
 
-    g.lineStyle(5, 0xffc857, 0.95);
-    g.lineBetween(cx - roadTopW / 2, horizon, cx - roadBottomW / 2, H);
-    g.lineBetween(cx + roadTopW / 2, horizon, cx + roadBottomW / 2, H);
+    // Asphalt, darker and sharper towards the player
+    const N = 36;
+    for (let i = 0; i < N; i++) {
+      const t0 = i / N;
+      const t1 = (i + 1) / N;
+      g.fillStyle(mix(0x5a5b60, 0x28282b, t0), 1);
+      g.beginPath();
+      g.moveTo(cx - wAt(t0) / 2, yAt(t0));
+      g.lineTo(cx + wAt(t0) / 2, yAt(t0));
+      g.lineTo(cx + wAt(t1) / 2, yAt(t1) + 1);
+      g.lineTo(cx - wAt(t1) / 2, yAt(t1) + 1);
+      g.closePath();
+      g.fillPath();
+    }
 
-    const drawLane = (frac: number) => {
-      g.lineStyle(3, 0xf4a261, 0.85);
-      for (let t = 0; t < 1; t += 0.07) {
-        const y1 = horizon + (H - horizon) * t;
-        const y2 = horizon + (H - horizon) * Math.min(1, t + 0.035);
-        const w1 = roadTopW + (roadBottomW - roadTopW) * t;
-        const w2 = roadTopW + (roadBottomW - roadTopW) * Math.min(1, t + 0.035);
-        const dash = (t * 14 + this.roadOffset * 0.04) % 1;
-        if (dash < 0.55) {
-          g.lineBetween(cx + frac * (w1 / 2), y1, cx + frac * (w2 / 2), y2);
-        }
+    // Road edges
+    g.lineStyle(4, 0xe9e4d8, 0.95);
+    g.lineBetween(cx - wAt(0) / 2, horizon, cx - wAt(1) / 2, H);
+    g.lineBetween(cx + wAt(0) / 2, horizon, cx + wAt(1) / 2, H);
+
+    // Lane dashes that rush towards the player
+    const K = 0.0014245;
+    const P = 70 * K;
+    const shift = this.roadOffset * K;
+    for (const frac of [-1 / 3, 1 / 3]) {
+      for (let k = -1; k < 1 / P + 1; k++) {
+        const t0 = k * P + shift;
+        const t1 = t0 + P * 0.5;
+        if (t1 <= 0 || t0 >= 1) continue;
+        const a = Math.max(0, t0);
+        const b = Math.min(1, t1);
+        g.lineStyle(1.2 + 3.6 * a, 0xf0ece0, 0.85);
+        g.lineBetween(cx + frac * (wAt(a) / 2), yAt(a), cx + frac * (wAt(b) / 2), yAt(b));
       }
-    };
-    drawLane(-0.33);
-    drawLane(0.33);
+    }
+
+    // Distance haze
+    g.fillGradientStyle(0x8f9096, 0x8f9096, 0x8f9096, 0x8f9096, 0.6, 0.6, 0, 0);
+    g.fillRect(0, horizon, W, 70);
   }
 
   private scrollParallax(dt: number) {

@@ -4,8 +4,8 @@
  */
 export const CONFIG = {
   LANE_COUNT: 3,
-  LANE_WIDTH: 110,
-  ROAD_WIDTH: 330,
+  LANE_WIDTH: 115,
+  ROAD_WIDTH: 480,
   VIEW_HEIGHT: 780,
   VIEW_WIDTH: 420,
 

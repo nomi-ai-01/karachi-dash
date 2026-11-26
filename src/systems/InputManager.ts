@@ -26,15 +26,15 @@ export class InputManager {
     // Touch / pointer
     s.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       this.tracking = true;
-      this.startX = p.x;
-      this.startY = p.y;
+      this.startX = p.worldX;
+      this.startY = p.worldY;
     });
 
     s.input.on('pointerup', (p: Phaser.Input.Pointer) => {
       if (!this.tracking) return;
       this.tracking = false;
-      const dx = p.x - this.startX;
-      const dy = p.y - this.startY;
+      const dx = p.worldX - this.startX;
+      const dy = p.worldY - this.startY;
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
 

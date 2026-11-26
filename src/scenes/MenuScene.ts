@@ -103,6 +103,12 @@ export class MenuScene extends Phaser.Scene {
 
   private buildHeroRickshaw(): Phaser.GameObjects.Container {
     const c = this.add.container(0, 0);
+    if (this.textures.exists('rickshaw_classic')) {
+      const img = this.add.image(0, 42, 'rickshaw_classic').setOrigin(0.5, 1);
+      img.setScale(130 / img.height);
+      c.add(img);
+      return c;
+    }
     const g = this.add.graphics();
     g.fillStyle(0xe63946, 1);
     g.fillRoundedRect(-45, -60, 90, 55, 10);

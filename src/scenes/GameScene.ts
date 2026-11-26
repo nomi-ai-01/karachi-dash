@@ -138,6 +138,16 @@ export class GameScene extends Phaser.Scene {
     this.parallaxMid = this.add.container(0, 0).setDepth(8);
     this.parallaxNear = this.add.container(0, 0).setDepth(14);
 
+    const bgKey = `bg_${this.worldId}`;
+    if (this.textures.exists(bgKey)) {
+      const skyH = CONFIG.VIEW_HEIGHT * 0.28 + 40;
+      const bg = this.add.image(CONFIG.VIEW_WIDTH / 2, 0, bgKey).setOrigin(0.5, 0).setDepth(2);
+      bg.setScale(skyH / bg.height);
+      this.parallaxFar.setVisible(false);
+      this.parallaxMid.setVisible(false);
+      this.parallaxNear.setVisible(false);
+    }
+
     for (let i = 0; i < 14; i++) {
       if (this.textures.exists('tex-building')) {
         this.parallaxFar.add(

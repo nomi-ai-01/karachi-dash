@@ -49,6 +49,7 @@ export class GameScene extends Phaser.Scene {
   private comboTimer = 0;
   private spawnTimer = 0;
   private roadOffset = 0;
+  private sceneryU = 0;
   private gameOver = false;
   private paused = false;
   private revived = false;
@@ -115,6 +116,7 @@ export class GameScene extends Phaser.Scene {
     this.comboTimer = 0;
     this.spawnTimer = 1.0;
     this.roadOffset = 0;
+    this.sceneryU = 0;
     this.lastCheer = 0;
     this.nearMissCooldown = 0;
     this.busesDodged = 0;
@@ -138,18 +140,9 @@ export class GameScene extends Phaser.Scene {
     this.parallaxMid = this.add.container(0, 0).setDepth(8);
     this.parallaxNear = this.add.container(0, 0).setDepth(14);
 
-    const bgKey = `bg_${this.worldId}`;
-    if (this.textures.exists(bgKey)) {
-      const skyH = CONFIG.VIEW_HEIGHT * 0.28 + 6;
-      const bg = this.add.image(CONFIG.VIEW_WIDTH / 2, 0, bgKey).setOrigin(0.5, 0).setDepth(2);
-      bg.setScale(skyH / bg.height);
-      const fade = this.add.graphics().setDepth(3);
-      fade.fillGradientStyle(0x6b6258, 0x6b6258, 0x6b6258, 0x6b6258, 0, 0, 1, 1);
-      fade.fillRect(0, skyH - 50, CONFIG.VIEW_WIDTH, 50);
-      this.parallaxFar.setVisible(false);
-      this.parallaxMid.setVisible(false);
-      this.parallaxNear.setVisible(false);
-    }
+    this.parallaxFar.setVisible(false);
+    this.parallaxMid.setVisible(false);
+    this.parallaxNear.setVisible(false);
 
     for (let i = 0; i < 14; i++) {
       if (this.textures.exists('tex-building')) {
@@ -323,6 +316,7 @@ export class GameScene extends Phaser.Scene {
     this.rickshaw.update(dt, CONFIG.VIEW_WIDTH / 2, speedFactor);
 
     this.roadOffset = (this.roadOffset + this.speed * dt) % 70;
+    this.sceneryU += this.speed * dt * 0.0014245 * 9;
     this.drawWorld();
     this.updateRain(dt);
     this.scrollParallax(dt);
@@ -523,7 +517,7 @@ export class GameScene extends Phaser.Scene {
       const count = randInt(1, 4);
       const golden = Math.random() < 0.08;
       for (let i = 0; i < count; i++) {
-        const d = i * 0.1;
+        const d = i * 0.17;
         const coin = new Coin(this, this.depthToLaneX(lane, d), this.depthToY(d), golden && i === 0);
         coin.depth = d;
         coin.lane = lane;
@@ -548,7 +542,7 @@ export class GameScene extends Phaser.Scene {
 
     for (const o of this.obstacles) {
       if (!o.active) continue;
-      o.depth += depthSpeed;
+      o.depth += depthSpeed * o.moveFactor;
       if (o.depth > 1.15) {
         o.destroy();
         continue;
@@ -1011,6 +1005,126 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private drawSky(skyTop: number, horizon: number, W: number) {
+    const b = this.bgGraphics;
+    // sun with soft glow
+    b.fillStyle(0xfff3cf, 0.25);
+    b.fillCircle(W * 0.74, horizon - 70, 62);
+    b.fillStyle(0xfff3cf, 0.9);
+    b.fillCircle(W * 0.74, horizon - 70, 34);
+    // drifting clouds
+    const t = this.time.now / 1000;
+    b.fillStyle(0xffffff, 0.55);
+    for (let i = 0; i < 4; i++) {
+      const x = ((t * (5 + i * 2) + i * 130) % (W + 160)) - 80;
+      const y = 70 + i * 26;
+      b.fillEllipse(x, y, 90, 22);
+      b.fillEllipse(x + 24, y - 9, 56, 22);
+    }
+    // faint far skyline
+    for (let i = 0; i < 16; i++) {
+      const bw = 30 + ((i * 37) % 22);
+      const bh = 26 + ((i * 53) % 46);
+      b.fillStyle(skyTop, 0.35);
+      b.fillRect(i * 28 - 10, horizon - bh, bw, bh + 2);
+    }
+  }
+
+  private drawScenery(
+    g: Phaser.GameObjects.Graphics,
+    cx: number,
+    horizon: number,
+    wAt: (t: number) => number,
+    yAt: (t: number) => number,
+    worldId: string,
+  ) {
+    type Pal = { walls: number[]; signs: number[]; win: number };
+    const PALS: Record<string, Pal> = {
+      saddar: { walls: [0xd98a5f, 0xc96f4a, 0xe8b27a, 0xb9583c], signs: [0xe63946, 0xffc857, 0x2a9d8f, 0x4a90d9], win: 0xffe9a8 },
+      clifton: { walls: [0x8fd3e8, 0xf2efe6, 0x6bb7d6, 0xe9d8b4], signs: [0xff7b54, 0x2a9d8f, 0xffc857, 0xe63980], win: 0xfff6c9 },
+      quaid: { walls: [0xe9e1c8, 0xcfd9b0, 0xb7c9a0, 0xf1ead6], signs: [0x01411c, 0xc9a227, 0x2a7f62, 0xe63946], win: 0xffe9a8 },
+      keamari: { walls: [0x7d8c99, 0x9aa7b2, 0xc47f4c, 0x5e6e7c], signs: [0xf4a261, 0xe63946, 0x4a90d9, 0xffc857], win: 0xffd98a },
+      burns: { walls: [0x5b3b6e, 0x7a2f5e, 0x2f4f6f, 0x6a3d3d], signs: [0xff3d81, 0x2ee6c8, 0xffc857, 0xff7b54], win: 0xffe066 },
+    };
+    const pal = PALS[worldId] || PALS.saddar;
+    const M = 9;
+    const f = this.sceneryU - Math.floor(this.sceneryU);
+    const base = Math.floor(this.sceneryU);
+    const s = (t: number) => wAt(t) / wAt(1);
+    const xin = (t: number) => wAt(t) / 2 + 14 + 81 * t;
+    const rnd = (n: number) => {
+      const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+      return x - Math.floor(x);
+    };
+    const shade = (c: number, k: number) => {
+      const r = Math.round(((c >> 16) & 255) * k);
+      const gg = Math.round(((c >> 8) & 255) * k);
+      const b = Math.round((c & 255) * k);
+      return (r << 16) | (gg << 8) | b;
+    };
+    const quad = (col: number, a: number, pts: number[]) => {
+      g.fillStyle(col, a);
+      g.beginPath();
+      g.moveTo(pts[0], pts[1]);
+      for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]);
+      g.closePath();
+      g.fillPath();
+    };
+
+    for (let j = 0; j <= M; j++) {
+      const tb = (j + f) / M;
+      const ta = Math.max(0, tb - 0.86 / M);
+      if (tb <= 0.01) continue;
+      const id = base - j;
+      for (const side of [-1, 1]) {
+        const seed = id * 2 + (side > 0 ? 1 : 0);
+        const wall = pal.walls[Math.floor(rnd(seed) * pal.walls.length)];
+        const sign = pal.signs[Math.floor(rnd(seed + 50) * pal.signs.length)];
+        const h = 230 + rnd(seed + 9) * 260;
+        const xa = cx + side * xin(ta);
+        const xb = cx + side * xin(tb);
+        const ya = yAt(ta);
+        const yb = yAt(tb);
+        const sa = s(ta);
+        const sb = s(tb);
+        // road-facing wall
+        quad(wall, 1, [xa, ya, xb, yb, xb, yb - h * sb, xa, ya - h * sa]);
+        // front face (towards the player)
+        const bw = 150;
+        const xo = xb + side * bw * sb;
+        quad(shade(wall, 0.78), 1, [xb, yb, xo, yb, xo, yb - h * sb, xb, yb - h * sb]);
+        // roof cap
+        quad(shade(wall, 0.6), 1, [xa, ya - h * sa, xb, yb - h * sb, xb, yb - (h + 14) * sb, xa, ya - (h + 14) * sa]);
+        // shop sign band at street level
+        quad(sign, 1, [xa, ya - 6 * sa, xb, yb - 6 * sb, xb, yb - 52 * sb, xa, ya - 52 * sa]);
+        // windows
+        if (tb > 0.18) {
+          const lit = rnd(seed + 3);
+          const rows = Math.max(3, Math.floor((h - 70) / 52));
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < 2; c++) {
+              const a0 = 0.12 + c * 0.45;
+              const a1 = a0 + 0.3;
+              const t0 = ta + a0 * (tb - ta);
+              const t1 = ta + a1 * (tb - ta);
+              const v0 = 70 + r * 52;
+              const v1 = v0 + 30;
+              const on = rnd(seed * 31 + r * 7 + c) < 0.35 + lit * 0.4;
+              quad(on ? pal.win : shade(wall, 0.45), on ? 0.95 : 0.8, [
+                cx + side * xin(t0), yAt(t0) - v0 * s(t0),
+                cx + side * xin(t1), yAt(t1) - v0 * s(t1),
+                cx + side * xin(t1), yAt(t1) - v1 * s(t1),
+                cx + side * xin(t0), yAt(t0) - v1 * s(t0),
+              ]);
+            }
+          }
+        }
+      }
+    }
+    // keep a clear sky gap above the road end
+    void horizon;
+  }
+
   private drawWorld() {
     const g = this.roadGraphics;
     g.clear();
@@ -1033,6 +1147,7 @@ export class GameScene extends Phaser.Scene {
 
     this.bgGraphics.fillGradientStyle(world.skyTop, world.skyTop, world.skyBot, world.skyBot, 1);
     this.bgGraphics.fillRect(0, 0, W, horizon + 40);
+    this.drawSky(world.skyTop, horizon, W);
     this.bgGraphics.fillGradientStyle(0x6b6258, 0x6b6258, 0x2a2622, 0x2a2622, 1);
     this.bgGraphics.fillRect(0, horizon, W, H - horizon);
 
@@ -1047,6 +1162,8 @@ export class GameScene extends Phaser.Scene {
       g.closePath();
       g.fillPath();
     }
+
+    this.drawScenery(g, cx, horizon, wAt, yAt, world.id);
 
     // Asphalt, darker and sharper towards the player
     const N = 36;

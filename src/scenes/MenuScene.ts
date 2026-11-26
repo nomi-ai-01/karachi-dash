@@ -22,7 +22,7 @@ export class MenuScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(PALETTE.midnight);
     this.add
-      .text(CONFIG.VIEW_WIDTH - 14, CONFIG.VIEW_HEIGHT - 26, 'v5', {
+      .text(CONFIG.VIEW_WIDTH - 14, CONFIG.VIEW_HEIGHT - 26, 'v6', {
         fontFamily: 'Arial',
         fontSize: '12px',
         color: '#8fb3c9',

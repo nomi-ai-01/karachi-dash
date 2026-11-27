@@ -1,6 +1,7 @@
 export const C = {
   LANES: [-3, 0, 3],
   LANE_W: 3,
+  OUTER_X: 8, // x of the decorative outer tracks
 
   SEG_LEN: 24,
   SEG_COUNT: 9,

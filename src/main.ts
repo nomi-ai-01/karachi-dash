@@ -15,6 +15,7 @@ const bar = document.getElementById('loadbar')!;
     game.run();
   } catch (e) {
     console.error(e);
-    loading.innerHTML = `<p style="padding:24px;color:#fff;font:16px sans-serif">Load error: ${String(e)}</p>`;
+    const stack = String((e as Error)?.stack ?? '').split('\n').slice(0, 6).join('\n');
+    loading.innerHTML = `<p style="padding:24px;color:#fff;font:16px sans-serif">Load error: ${String(e)}</p><pre style="padding:0 24px;color:#cfe;font:11px monospace;white-space:pre-wrap">${stack}</pre>`;
   }
 })();

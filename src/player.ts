@@ -57,25 +57,39 @@ export class Player {
       main = null;
     }
     if (main) {
-      this.setupFbx(main);
+      try {
+        this.setupFbx(main);
       const clips: Partial<Record<Anim, THREE.AnimationClip>> = {};
       if (main.animations[0]) clips.run = main.animations[0];
-      for (const name of ['jump', 'slide', 'die', 'idle'] as Anim[]) {
-        try {
-          const f = await fbx.loadAsync(`${MODEL_DIR}${name}.fbx`);
-          if (f.animations[0]) clips[name] = f.animations[0];
-        } catch {
-          /* optional */
-        }
-      }
       this.mixer = new THREE.AnimationMixer(main);
-      for (const k of Object.keys(clips) as Anim[]) {
-        const clip = clips[k]!;
-        clip.name = k;
-        this.actions[k] = this.mixer.clipAction(clip);
+      if (clips.run) {
+        clips.run.name = 'run';
+        this.actions.run = this.mixer.clipAction(clips.run);
+      }
+      // the other animations load in the background so the game starts after run.fbx only
+      for (const name of ['idle', 'jump', 'slide', 'die'] as Anim[]) {
+        fbx
+          .loadAsync(`${MODEL_DIR}${name}.fbx`)
+          .then((f) => {
+            if (!f.animations[0] || !this.mixer) return;
+            f.animations[0].name = name;
+            this.actions[name] = this.mixer.clipAction(f.animations[0]);
+            if (name === 'idle' && !this.running && !this.current) this.play('idle');
+          })
+          .catch(() => {
+            /* optional */
+          });
       }
       this.animated = !!this.actions.run;
       console.info('[Player] FBX animations loaded:', Object.keys(this.actions).join(', '));
+      } catch (err) {
+        console.error('[Player] FBX setup failed, using static boy', err);
+        this.visual.clear();
+        this.mixer = undefined;
+        this.actions = {};
+        this.animated = false;
+        await this.loadFallback();
+      }
     } else {
       await this.loadFallback();
     }

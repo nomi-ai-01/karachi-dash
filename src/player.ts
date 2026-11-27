@@ -4,12 +4,13 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { C } from './config';
 import type { Assets } from './assets';
 
-type Anim = 'run' | 'jump' | 'slide' | 'die' | 'idle';
+type Anim = 'run' | 'idle' | 'jump' | 'fall' | 'slide' | 'die';
 const MODEL_DIR = 'models/boy/';
+const MIXAMO_DIR = 'models/mixamo/';
 const AIR_TIME = (2 * C.JUMP_V) / C.GRAVITY;
 
 /**
- * The boy. Loads Mixamo FBX animations (run/jump/slide/die/idle .fbx in public/models/boy/).
+ * The player character. Loads the new Mixamo character and animation-only FBX clips from public/models/mixamo/.
  * Falls back to the static boy.obj (procedural pose) and finally to a simple capsule figure.
  */
 export class Player {
@@ -51,48 +52,76 @@ export class Player {
   async load() {
     const fbx = new FBXLoader();
     let main: THREE.Group | null = null;
+
+    // Prefer the newly supplied Mixamo character. Keep the old project model
+    // as a fallback so the game can still boot if the new asset is missing.
     try {
-      main = await fbx.loadAsync(MODEL_DIR + 'run.fbx');
-    } catch {
-      main = null;
-    }
-    if (main) {
+      main = await fbx.loadAsync(`${MIXAMO_DIR}Running.fbx`);
+      console.info('[Player] Loaded new Mixamo character: Running.fbx');
+    } catch (newModelError) {
+      console.warn('[Player] New Mixamo model unavailable; trying legacy run.fbx', newModelError);
       try {
-        this.setupFbx(main);
-      const clips: Partial<Record<Anim, THREE.AnimationClip>> = {};
-      if (main.animations[0]) clips.run = main.animations[0];
+        main = await fbx.loadAsync(`${MODEL_DIR}run.fbx`);
+      } catch {
+        main = null;
+      }
+    }
+
+    if (!main) {
+      await this.loadFallback();
+      this.setMenu();
+      return;
+    }
+
+    try {
+      this.setupFbx(main);
       this.mixer = new THREE.AnimationMixer(main);
-      if (clips.run) {
-        clips.run.name = 'run';
-        this.actions.run = this.mixer.clipAction(clips.run);
+
+      // The main Running.fbx contains both the skinned character and its run clip.
+      if (main.animations[0]) {
+        main.animations[0].name = 'run';
+        this.actions.run = this.mixer.clipAction(main.animations[0]);
       }
-      // the other animations load in the background so the game starts after run.fbx only
-      for (const name of ['idle', 'jump', 'slide', 'die'] as Anim[]) {
-        fbx
-          .loadAsync(`${MODEL_DIR}${name}.fbx`)
-          .then((f) => {
-            if (!f.animations[0] || !this.mixer) return;
-            f.animations[0].name = name;
-            this.actions[name] = this.mixer.clipAction(f.animations[0]);
-            if (name === 'idle' && !this.running && !this.current) this.play('idle');
-          })
-          .catch(() => {
-            /* optional */
-          });
-      }
+
+      // Each remaining file is animation-only and must share the same Mixamo rig.
+      const animationFiles: Array<[Anim, string]> = [
+        ['idle', 'Idle.fbx'],
+        ['jump', 'Jumping.fbx'],
+        ['fall', 'Falling.fbx'],
+        ['slide', 'Running_Slide.fbx'],
+        ['die', 'Dying.fbx'],
+      ];
+
+      const loaded = await Promise.allSettled(
+        animationFiles.map(async ([name, file]) => {
+          const animationModel = await fbx.loadAsync(`${MIXAMO_DIR}${file}`);
+          const clip = animationModel.animations[0];
+          if (!clip || !this.mixer) {
+            throw new Error(`No animation clip found in ${file}`);
+          }
+          clip.name = name;
+          this.actions[name] = this.mixer.clipAction(clip);
+          return name;
+        }),
+      );
+
+      loaded.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.warn(`[Player] Optional animation failed: ${animationFiles[index][1]}`, result.reason);
+        }
+      });
+
       this.animated = !!this.actions.run;
-      console.info('[Player] FBX animations loaded:', Object.keys(this.actions).join(', '));
-      } catch (err) {
-        console.error('[Player] FBX setup failed, using static boy', err);
-        this.visual.clear();
-        this.mixer = undefined;
-        this.actions = {};
-        this.animated = false;
-        await this.loadFallback();
-      }
-    } else {
+      console.info('[Player] Mixamo animations ready:', Object.keys(this.actions).join(', '));
+    } catch (err) {
+      console.error('[Player] Mixamo character setup failed; using legacy fallback', err);
+      this.visual.clear();
+      this.mixer = undefined;
+      this.actions = {};
+      this.animated = false;
       await this.loadFallback();
     }
+
     this.setMenu();
   }
 
@@ -218,7 +247,7 @@ export class Player {
     const prev = this.current ? this.actions[this.current] : undefined;
     a.reset();
     a.enabled = true;
-    a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+    a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
     a.clampWhenFinished = once;
     a.timeScale = fitSeconds ? a.getClip().duration / fitSeconds : 1;
     if (prev && prev !== a) prev.fadeOut(0.12);
@@ -236,6 +265,9 @@ export class Player {
     if (this.y > 0 || this.vy > 0) {
       this.vy -= C.GRAVITY * dt;
       this.y += this.vy * dt;
+      if (this.y > 0.15 && this.vy < -1 && this.alive && this.current !== 'fall') {
+        this.play('fall');
+      }
       if (this.y <= 0) {
         this.y = 0;
         this.vy = 0;

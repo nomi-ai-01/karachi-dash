@@ -334,8 +334,8 @@ export class Game {
       pos = new THREE.Vector3(1.1, 1.5, 4.0);
       look = new THREE.Vector3(0, 1.0, 0);
     } else {
-      pos = new THREE.Vector3(px * 0.55, 3.2, 6.2);
-      look = new THREE.Vector3(px * 0.35, 1.6, -10);
+      pos = new THREE.Vector3(px * 0.55, 3.0, 5.4);
+      look = new THREE.Vector3(px * 0.35, 1.5, -9);
     }
     const k = 1 - Math.exp(-dt * (this.state === 'menu' ? 4 : 7));
     this.camPos.lerp(pos, k);

@@ -326,6 +326,7 @@ export class Spawner {
         this.ambient.splice(i, 1);
       }
     }
+    if (!C.OUTER_TRACKS) return;
     for (let s = 0; s < 2; s++) {
       this.ambT[s] -= dt;
       if (this.ambT[s] > 0) continue;

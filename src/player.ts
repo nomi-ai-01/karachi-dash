@@ -100,7 +100,7 @@ export class Player {
     obj.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(obj);
     const h = Math.max(0.001, box.max.y - box.min.y);
-    const s = C.PLAYER_H / h;
+    const s = C.VISUAL_H / h;
     obj.scale.multiplyScalar(s);
     obj.updateMatrixWorld(true);
     const box2 = new THREE.Box3().setFromObject(obj);

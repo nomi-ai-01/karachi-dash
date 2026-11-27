@@ -99,7 +99,7 @@ export class World {
     }
 
     // sleepers (instanced) + rails
-    const tracks = [...C.LANES, -C.OUTER_X, C.OUTER_X];
+    const tracks: number[] = C.OUTER_TRACKS ? [...C.LANES, -C.OUTER_X, C.OUTER_X] : [...C.LANES];
     const count = tracks.length * L;
     const inst = new THREE.InstancedMesh(this.sleeperGeo, this.sleeperMat, count);
     const m = new THREE.Matrix4();

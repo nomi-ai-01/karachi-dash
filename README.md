@@ -13,6 +13,11 @@ npm run typecheck  # optional TypeScript check
 ## Controls
 Phone: swipe left/right (lane), up (jump), down (slide). Keyboard: arrows/WASD, Space = jump, P/Esc = pause.
 
+## Trains
+- Parked trains: just steer around them.
+- Moving trains rush at you (horn sounds first), shorter and faster.
+- Side tracks: decorative trains pass by (parked or fast oncoming).
+
 ## Character animations (Mixamo)
 Put the files in `public/models/boy/` with exactly these names:
 

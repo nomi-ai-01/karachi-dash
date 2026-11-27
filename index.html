@@ -1,51 +1,123 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-    />
-    <meta name="theme-color" content="#0B1C2C" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b3d4c" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <title>Karachi Dash</title>
-    <link rel="icon" type="image/png" sizes="512x512" href="pwa-512.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="pwa-192.png" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        -webkit-tap-highlight-color: transparent;
-        user-select: none;
-        -webkit-user-select: none;
-      }
-      html,
-      body {
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        background: #0b1c2c;
-        touch-action: none;
-      }
-      #game-container {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      canvas {
-        display: block;
-        max-width: 100%;
-        max-height: 100%;
-      }
+      :root { --gold:#ffc857; --red:#e63946; --navy:#16304f; }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body { margin:0; height:100%; overflow:hidden; background:#0b3d4c;
+        font-family:"Trebuchet MS","Segoe UI",Roboto,sans-serif; color:#fff;
+        touch-action:none; user-select:none; -webkit-user-select:none; }
+      #app { position:fixed; inset:0; }
+      #app canvas { display:block; width:100%; height:100%; touch-action:none; }
+      .hidden { display:none !important; }
+
+      #hud { position:fixed; inset:0; pointer-events:none;
+        padding:max(14px, env(safe-area-inset-top)) 14px 0 14px; }
+      #pauseBtn { pointer-events:auto; position:absolute; left:14px; top:max(14px, env(safe-area-inset-top));
+        width:58px; height:58px; border:3px solid #fff; border-radius:16px; cursor:pointer;
+        background:linear-gradient(#3aa0ff,#1769d6); box-shadow:0 4px 0 #0d4a9e, 0 6px 14px #0006;
+        display:flex; align-items:center; justify-content:center; gap:7px; }
+      #pauseBtn i { width:9px; height:26px; background:#fff; border-radius:3px; display:block; }
+      #hudRight { position:absolute; right:14px; top:max(14px, env(safe-area-inset-top));
+        display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+      .pill { background:rgba(22,48,79,.92); border-radius:16px; padding:6px 18px;
+        font-weight:800; box-shadow:0 4px 12px #0005; border:2px solid #ffffff22; }
+      #score { font-size:30px; letter-spacing:2px; font-variant-numeric:tabular-nums; }
+      .coinpill { display:flex; align-items:center; gap:10px; font-size:26px; padding:4px 16px 4px 6px; }
+      .coinicon { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+        background:radial-gradient(circle at 35% 30%,#fff3a0,#ffc61a 60%,#d68a00); color:#b86e00; font-size:20px;
+        border:2px solid #c07800; }
+
+      .overlay { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+        gap:14px; padding:24px; text-align:center; }
+      #menu { justify-content:flex-start; padding-top:max(28px, env(safe-area-inset-top));
+        background:linear-gradient(#0000 55%, #000a); }
+      #menu .bottom { margin-top:auto; padding-bottom:max(28px, env(safe-area-inset-bottom));
+        display:flex; flex-direction:column; align-items:center; gap:12px; }
+      .title { font-size:clamp(40px,11vw,64px); font-weight:900; line-height:.95; letter-spacing:1px;
+        color:var(--gold); text-shadow:0 4px 0 #b3261e, 0 7px 14px #0008; }
+      .title span { color:var(--red); text-shadow:0 4px 0 #fff, 0 7px 14px #0008; display:block; }
+      .sub { opacity:.92; font-size:15px; text-shadow:0 2px 6px #000a; }
+      .btn { pointer-events:auto; border:3px solid #fff; border-radius:20px; padding:14px 40px; font-size:26px;
+        font-weight:900; color:#fff; cursor:pointer; letter-spacing:1px;
+        background:linear-gradient(#4cd964,#1e9e3a); box-shadow:0 5px 0 #11702a, 0 8px 18px #0006; }
+      .btn:active { transform:translateY(3px); box-shadow:0 2px 0 #11702a; }
+      .btn.alt { background:linear-gradient(#3aa0ff,#1769d6); box-shadow:0 5px 0 #0d4a9e, 0 8px 18px #0006; font-size:20px; padding:10px 28px; }
+      .btn.small { font-size:15px; padding:8px 18px; border-radius:14px; background:#16304fcc; box-shadow:none; }
+      .stats { display:flex; gap:12px; }
+      .stat { background:rgba(22,48,79,.9); border-radius:14px; padding:8px 16px; min-width:110px; }
+      .stat b { display:block; font-size:24px; color:var(--gold); }
+      .stat small { opacity:.85; }
+      .card { background:rgba(10,24,44,.92); border:3px solid #ffffff33; border-radius:24px; padding:22px 26px;
+        display:flex; flex-direction:column; gap:12px; align-items:center; min-width:min(86vw,340px); }
+      .card h2 { margin:0; font-size:32px; color:var(--gold); }
+      .big { font-size:48px; font-weight:900; font-variant-numeric:tabular-nums; }
+      #pause, #over { background:#0009; }
+      #newBest { color:#7dff9c; font-weight:900; }
+
+      #loading { position:fixed; inset:0; z-index:10; display:flex; flex-direction:column; align-items:center;
+        justify-content:center; gap:22px; background:radial-gradient(#126a80,#0b3d4c); }
+      .loadtitle { font-size:44px; font-weight:900; color:var(--gold); text-shadow:0 4px 0 #b3261e; }
+      .loadtrack { width:min(70vw,320px); height:14px; background:#0006; border-radius:8px; overflow:hidden; border:2px solid #fff4; }
+      #loadbar { height:100%; width:0; background:linear-gradient(90deg,var(--gold),var(--red)); transition:width .15s; }
     </style>
   </head>
   <body>
-    <div id="game-container"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <div id="app"></div>
+
+    <div id="hud" class="hidden">
+      <button id="pauseBtn" aria-label="Pause"><i></i><i></i></button>
+      <div id="hudRight">
+        <div class="pill" id="score">000000</div>
+        <div class="pill coinpill"><span class="coinicon">★</span><span id="coins">0</span></div>
+      </div>
+    </div>
+
+    <div id="menu" class="overlay">
+      <div class="title">KARACHI<span>DASH</span></div>
+      <div class="sub">Swipe ← → to change track · ↑ jump · ↓ slide</div>
+      <div class="bottom">
+        <div class="stats">
+          <div class="stat"><small>BEST</small><b id="menuBest">0</b></div>
+          <div class="stat"><small>COINS</small><b id="menuCoins">0</b></div>
+        </div>
+        <button id="playBtn" class="btn">PLAY</button>
+        <button id="muteBtn" class="btn small">Sound: ON</button>
+      </div>
+    </div>
+
+    <div id="pause" class="overlay hidden">
+      <div class="card">
+        <h2>PAUSED</h2>
+        <button id="resumeBtn" class="btn">RESUME</button>
+        <button id="quitBtn" class="btn alt">MENU</button>
+      </div>
+    </div>
+
+    <div id="over" class="overlay hidden">
+      <div class="card">
+        <h2>GAME OVER</h2>
+        <div class="big" id="overScore">0</div>
+        <div id="newBest" class="hidden">NEW BEST!</div>
+        <div class="stats">
+          <div class="stat"><small>BEST</small><b id="overBest">0</b></div>
+          <div class="stat"><small>COINS</small><b id="overCoins">0</b></div>
+        </div>
+        <button id="retryBtn" class="btn">RETRY</button>
+        <button id="homeBtn" class="btn alt">MENU</button>
+      </div>
+    </div>
+
+    <div id="loading">
+      <div class="loadtitle">KARACHI DASH</div>
+      <div class="loadtrack"><div id="loadbar"></div></div>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

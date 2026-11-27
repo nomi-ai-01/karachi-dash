@@ -1,40 +1,36 @@
-# Karachi Dash — 3-Lane Runner
+# Karachi Dash 3D
 
-A mobile-first, three-lane endless runner set in a colorful, stylized Karachi railway world.
+Endless runner (Three.js + Vite + TypeScript) set on Karachi's railway tracks.
 
-## Run locally
-
-```bash
-npm install
-npm run dev
+## Run
 ```
-
-## Gameplay
-
-- Three perspective railway lanes with sleepers and polished rails
-- Original cartoon runner character (rear view), running animation, lane switching, jump and slide
-- Stylized oncoming train obstacles, carts, barriers and track hazards
-- Collectible gold coins and power-ups
-- Five Karachi-inspired zones, missions, daily rewards, shop outfits and score saving
-- Swipe controls on phones; keyboard controls on desktop
-- 60 FPS Phaser rendering target and PWA support
-
-## Art direction
-
-This browser project is built with Phaser 3 (2D Canvas/WebGL) and uses a pseudo-3D perspective effect. It is not a true 3D model-based game engine build. The old photorealistic PNG props are no longer loaded; the runner, railway tracks, coins, trains and city scenery are drawn as consistent stylized game art.
+npm install
+npm run dev        # phone: open the Network URL printed in the terminal
+npm run build      # production build in dist/
+npm run typecheck  # optional TypeScript check
+```
 
 ## Controls
+Phone: swipe left/right (lane), up (jump), down (slide). Keyboard: arrows/WASD, Space = jump, P/Esc = pause.
 
-- Swipe left/right or arrow keys: change lane
-- Swipe up / Space / Up arrow: jump
-- Swipe down / Down arrow: slide
-- P / Escape: pause
+## Character animations (Mixamo)
+Put the files in `public/models/boy/` with exactly these names:
 
-## Build
+| file        | Mixamo animation                          | download setting                      |
+|-------------|-------------------------------------------|---------------------------------------|
+| run.fbx     | Running                                   | FBX Binary, **With Skin**, In Place   |
+| jump.fbx    | Jump / Running Jump                       | FBX Binary, Without Skin, In Place    |
+| slide.fbx   | Running Slide                             | FBX Binary, Without Skin, In Place    |
+| die.fbx     | Stumble Backwards / Falling Back Death    | FBX Binary, Without Skin              |
+| idle.fbx    | Idle (menu)                               | FBX Binary, Without Skin              |
 
-```bash
-npm run typecheck
-npm run build
-```
+`run.fbx` is required for animation; the others are optional (missing ones are skipped).
+Until `run.fbx` exists the game shows the static `boy.obj` with a simple procedural pose (arms stay in T-pose).
 
-Deploy the generated `dist/` folder to GitHub Pages, Netlify or Vercel. See `CAPACITOR.md` for Android/iOS packaging.
+If the boy looks inside-out/has wrong texture after adding FBX, tell the developer: texture flip can be tuned in `src/player.ts`.
+
+## Files
+- `src/world.ts` tracks, Karachi buildings, palms, wires, gantry sign, Mazar, mosque
+- `src/spawner.ts` trains, containers, barriers, coins, difficulty
+- `src/player.ts` boy, lanes, jump, slide, animations
+- `src/game.ts` state, camera, HUD, input

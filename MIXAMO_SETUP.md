@@ -38,3 +38,13 @@ npm run dev
 ```
 
 Then check the browser console for `[Player] Mixamo animations ready`. If any animation is missing or has a mismatched skeleton, the console will identify the FBX file. Keep the old assets until the new character has been visually tested in the game.
+
+
+## V1.1 visual fixes
+- The new Mixamo FBX no longer receives the legacy OBJ texture atlas. Its own embedded materials/textures are preserved.
+- Character display height increased from 2.05 to 2.85 world units; collision body dimensions were adjusted modestly.
+- Running animation playback is faster at the initial game speed.
+- Gameplay camera moved closer and slightly lower to give the runner more screen presence.
+- Side facades, pavements, palms, and poles were moved inward to reduce the empty side gaps.
+
+Note: if the new FBX itself has a short/chibi body shape or lacks the embroidered vest texture, a new proportion-correct character model/UV texture is required. Uniform scaling cannot lengthen arms or legs independently.

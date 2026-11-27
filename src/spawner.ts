@@ -10,9 +10,19 @@ export interface Obstacle {
   z: number; // centre
   len: number;
   hw: number; // half width for collision
+  vz: number; // extra speed towards the player (moving trains)
+  horned?: boolean;
   y0: number;
   y1: number;
   obj: THREE.Object3D;
+}
+
+interface Ambient {
+  obj: THREE.Object3D;
+  z: number;
+  len: number;
+  vz: number;
+  side: number;
 }
 
 interface Coin {
@@ -26,19 +36,22 @@ const TRAIN_TEX_M = 11.2; // metres of train covered by one copy of the side tex
 
 export class Spawner {
   obstacles: Obstacle[] = [];
+  ambient: Ambient[] = [];
+  onHorn: () => void = () => {};
+  private ambT = [2, 5];
   coins: Coin[] = [];
   private pool: THREE.Mesh[] = [];
   private cursor = 45;
   private safeLane = 1;
-  private trainGeos = new Map<number, THREE.BoxGeometry>();
+  private trainGeos = new Map<number, THREE.BufferGeometry>();
 
   private matGreen: THREE.MeshBasicMaterial;
   private matRed: THREE.MeshBasicMaterial;
   private matFront: THREE.MeshBasicMaterial;
   private matContainer: THREE.MeshBasicMaterial;
   private matStripe: THREE.MeshBasicMaterial;
-  private matSolidGreen = new THREE.MeshLambertMaterial({ color: 0x14683a });
-  private matRoof = new THREE.MeshLambertMaterial({ color: 0xaab4bb });
+  private matSolidGreen = new THREE.MeshLambertMaterial({ color: 0x14683a, side: THREE.DoubleSide });
+  private matRoof = new THREE.MeshLambertMaterial({ color: 0xaab4bb, side: THREE.DoubleSide });
   private matDark = new THREE.MeshLambertMaterial({ color: 0x25282c });
   private matPost = new THREE.MeshLambertMaterial({ color: 0x555b62 });
   private matLamp = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
@@ -50,8 +63,8 @@ export class Spawner {
 
   constructor(private scene: THREE.Scene, a: Assets) {
     a.sideGreen.wrapS = a.sideRed.wrapS = THREE.RepeatWrapping;
-    this.matGreen = new THREE.MeshBasicMaterial({ map: a.sideGreen });
-    this.matRed = new THREE.MeshBasicMaterial({ map: a.sideRed });
+    this.matGreen = new THREE.MeshBasicMaterial({ map: a.sideGreen, side: THREE.DoubleSide });
+    this.matRed = new THREE.MeshBasicMaterial({ map: a.sideRed, side: THREE.DoubleSide });
     this.matFront = new THREE.MeshBasicMaterial({ map: a.front, transparent: true, alphaTest: 0.5 });
     this.matContainer = new THREE.MeshBasicMaterial({ map: a.container });
     this.matStripe = new THREE.MeshBasicMaterial({ map: a.stripe });
@@ -67,6 +80,9 @@ export class Spawner {
   reset() {
     for (const o of this.obstacles) this.scene.remove(o.obj);
     for (const c of this.coins) this.freeCoin(c);
+    for (const m of this.ambient) this.scene.remove(m.obj);
+    this.ambient = [];
+    this.ambT = [2, 5];
     this.obstacles = [];
     this.coins = [];
     this.cursor = 45;
@@ -78,13 +94,18 @@ export class Spawner {
 
     for (let i = this.obstacles.length - 1; i >= 0; i--) {
       const o = this.obstacles[i];
-      o.z += dz;
+      o.z += dz + o.vz * dt;
       o.obj.position.z = o.z;
+      if (o.vz > 0 && !o.horned && o.z - o.len / 2 > -70) {
+        o.horned = true;
+        this.onHorn();
+      }
       if (o.z - o.len / 2 > 16) {
         this.scene.remove(o.obj);
         this.obstacles.splice(i, 1);
       }
     }
+    this.updateAmbient(dz, dt);
     for (let i = this.coins.length - 1; i >= 0; i--) {
       const c = this.coins[i];
       c.z += dz;
@@ -136,12 +157,12 @@ export class Spawner {
     const lanes = this.shuffle([0, 1, 2]);
     let rowLen = 4;
 
-    if (early ? r < 0.5 : r < 0.26) {
+    if (early ? r < 0.5 : r < 0.22) {
       // plain coin line
       const l = lanes[0];
       this.coinLine(C.LANES[l], 0.9, 8, 2.2, z0);
       rowLen = 8 * 2.2;
-    } else if (early ? true : r < 0.48) {
+    } else if (early ? true : r < 0.4) {
       // low barriers (jump)
       const n = diff > 0.3 && Math.random() < 0.4 ? 2 : 1;
       for (let k = 0; k < n; k++) {
@@ -151,7 +172,7 @@ export class Spawner {
       }
       this.coinLine(C.LANES[lanes[2]], 0.9, 5, 2.2, z0);
       rowLen = 8;
-    } else if (r < 0.6) {
+    } else if (r < 0.5) {
       // high barriers (slide)
       const n = diff > 0.3 && Math.random() < 0.4 ? 2 : 1;
       for (let k = 0; k < n; k++) {
@@ -162,7 +183,7 @@ export class Spawner {
       rowLen = 8;
     } else {
       // blocking trains / containers: always leave one reachable free lane
-      const isContainer = r >= 0.9;
+      const isContainer = r >= 0.93;
       const n = diff > 0.25 && Math.random() < 0.5 ? 2 : 1;
       const cand = [0, 1, 2].filter((l) => Math.abs(l - this.safeLane) <= 1);
       const free = cand[Math.floor(Math.random() * cand.length)];
@@ -173,8 +194,17 @@ export class Spawner {
       for (const l of blocked) {
         const len = isContainer ? 6.6 : lens[Math.floor(Math.random() * lens.length)];
         rowLen = Math.max(rowLen, len);
-        if (isContainer) this.addContainer(C.LANES[l], z0 - len / 2, len);
-        else this.addTrain(C.LANES[l], z0 - len / 2, len, Math.random() < 0.5);
+        const lx = C.LANES[l];
+        if (isContainer) this.addContainer(lx, z0 - len / 2, len);
+        else {
+          // moving trains rush towards the player, only in lanes with nothing ahead
+          const vz = 11 + Math.random() * 5 + diff * 6;
+          const moving = dist > 50 && this.canRush(lx, vz, speed) && Math.random() < Math.min(0.7, 0.4 + diff * 0.3);
+          if (moving) {
+            const mlen = [10, 12, 14][Math.floor(Math.random() * 3)];
+            this.addTrain(lx, z0 - mlen / 2, mlen, Math.random() < 0.5, vz);
+          } else this.addTrain(lx, z0 - len / 2, len, Math.random() < 0.5, 0);
+        }
       }
       const freeLanes = [0, 1, 2].filter((l) => !blocked.includes(l));
       const coinLane = freeLanes.includes(free) ? free : freeLanes[0];
@@ -184,6 +214,20 @@ export class Spawner {
 
     const gap = Math.max(16, speed * (1.05 - 0.3 * diff));
     this.cursor = dist + rowLen + gap;
+  }
+
+  /** A rushing train may only spawn if it can never catch an obstacle ahead of it in the same lane */
+  private canRush(lx: number, vz: number, speed: number) {
+    for (const o of this.obstacles) {
+      if (o.x !== lx) continue;
+      const farEnd = o.z - o.len / 2;
+      const closing = vz - o.vz;
+      if (closing <= 0) continue;
+      const tCatch = (farEnd + C.SPAWN_DIST) / closing;
+      const tLeave = (16 - farEnd) / (speed + o.vz);
+      if (tCatch <= tLeave) return false;
+    }
+    return true;
   }
 
   private shuffle<T>(a: T[]): T[] {
@@ -196,30 +240,59 @@ export class Spawner {
 
   // ------------------------------------------------------------ builders
 
+  /** Train body with chamfered (rounded-looking) roof corners, like the painted engine front */
   private trainGeo(len: number) {
     let g = this.trainGeos.get(len);
-    if (!g) {
-      g = new THREE.BoxGeometry(2.6, 3.0, len);
-      const rep = Math.max(1, Math.round(len / TRAIN_TEX_M));
-      const uv = g.attributes.uv as THREE.BufferAttribute;
-      for (let v = 0; v < 8; v++) uv.setX(v, uv.getX(v) * rep); // faces +x and -x
-      this.trainGeos.set(len, g);
-    }
+    if (g) return g;
+    const prof: [number, number][] = [
+      [1.3, 0],
+      [1.3, 2.55],
+      [1.0, 2.85],
+      [0.8, 3.0],
+      [-0.8, 3.0],
+      [-1.0, 2.85],
+      [-1.3, 2.55],
+      [-1.3, 0],
+    ];
+    const rep = Math.max(1, Math.round(len / TRAIN_TEX_M));
+    const h = len / 2;
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const quad = (a: [number, number], b: [number, number]) => {
+      const va = a[1] / 3.0;
+      const vb = b[1] / 3.0;
+      pos.push(a[0], a[1], -h, b[0], b[1], -h, b[0], b[1], h, a[0], a[1], -h, b[0], b[1], h, a[0], a[1], h);
+      uv.push(0, va, 0, vb, rep, vb, 0, va, rep, vb, rep, va);
+    };
+    for (const i of [0, 1, 2, 4, 5, 6]) quad(prof[i], prof[i + 1]); // painted walls + chamfers
+    quad(prof[3], prof[4]); // roof
+    const cap = (z: number) => {
+      for (let i = 0; i < prof.length; i++) {
+        const p = prof[i];
+        const q = prof[(i + 1) % prof.length];
+        pos.push(0, 1.5, z, p[0], p[1], z, q[0], q[1], z);
+        uv.push(0, 0, 0, 0, 0, 0);
+      }
+    };
+    cap(h);
+    cap(-h);
+    g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.addGroup(0, 36, 0); // walls
+    g.addGroup(36, 6, 1); // roof
+    g.addGroup(42, 24, 2); // front cap
+    g.addGroup(66, 24, 3); // back cap
+    g.computeVertexNormals();
+    this.trainGeos.set(len, g);
     return g;
   }
 
-  private addTrain(x: number, z: number, len: number, red: boolean) {
+  private makeTrainObj(len: number, red: boolean) {
     const g = new THREE.Group();
     const side = red ? this.matRed : this.matGreen;
-    const body = new THREE.Mesh(this.trainGeo(len), [
-      side,
-      side,
-      this.matRoof,
-      this.matDark,
-      this.matSolidGreen,
-      this.matDark,
-    ]);
-    body.position.y = 2.0;
+    const body = new THREE.Mesh(this.trainGeo(len), [side, this.matRoof, this.matSolidGreen, this.matDark]);
+    body.position.y = 0.5;
     g.add(body);
     const under = new THREE.Mesh(this.underGeo, this.matDark);
     under.scale.z = len - 1;
@@ -233,8 +306,39 @@ export class Spawner {
     const front = new THREE.Mesh(this.frontGeo, this.matFront);
     front.position.set(0, 2.0, len / 2 + 0.03);
     g.add(front);
+    return g;
+  }
+
+  private addTrain(x: number, z: number, len: number, red: boolean, vz: number) {
+    const g = this.makeTrainObj(len, red);
     this.place(g, x, z);
-    this.obstacles.push({ kind: 'train', x, z, len, hw: 1.15, y0: 0.4, y1: 3.6, obj: g });
+    this.obstacles.push({ kind: 'train', x, z, len, hw: 1.15, y0: 0.4, y1: 3.6, vz, obj: g });
+  }
+
+  /** Decorative trains on the two outer tracks: parked/slow ones and fast oncoming ones */
+  private updateAmbient(dz: number, dt: number) {
+    for (let i = this.ambient.length - 1; i >= 0; i--) {
+      const m = this.ambient[i];
+      m.z += dz + m.vz * dt;
+      m.obj.position.z = m.z;
+      if (m.z - m.len / 2 > 18) {
+        this.scene.remove(m.obj);
+        this.ambient.splice(i, 1);
+      }
+    }
+    for (let s = 0; s < 2; s++) {
+      this.ambT[s] -= dt;
+      if (this.ambT[s] > 0) continue;
+      const side = s === 0 ? -1 : 1;
+      if (this.ambient.some((m) => m.side === side)) continue;
+      const oncoming = Math.random() < 0.45;
+      const len = oncoming ? [24, 36][Math.floor(Math.random() * 2)] : [36, 48, 60][Math.floor(Math.random() * 3)];
+      const g = this.makeTrainObj(len, Math.random() < 0.5);
+      const z = -C.SPAWN_DIST - len / 2;
+      this.place(g, side * C.OUTER_X, z);
+      this.ambient.push({ obj: g, z, len, vz: oncoming ? 22 + Math.random() * 8 : 0, side });
+      this.ambT[s] = 2 + Math.random() * 5;
+    }
   }
 
   private addContainer(x: number, z: number, len: number) {
@@ -246,7 +350,7 @@ export class Spawner {
     box.position.y = 0.5 + 1.3;
     g.add(box);
     this.place(g, x, z);
-    this.obstacles.push({ kind: 'container', x, z, len, hw: 1.1, y0: 0.1, y1: 3.2, obj: g });
+    this.obstacles.push({ kind: 'container', x, z, len, hw: 1.1, y0: 0.1, y1: 3.2, vz: 0, obj: g });
   }
 
   private addLow(x: number, z: number) {
@@ -263,7 +367,7 @@ export class Spawner {
     bar.position.y = 0.75;
     g.add(bar);
     this.place(g, x, z);
-    this.obstacles.push({ kind: 'low', x, z, len: 0.6, hw: 1.3, y0: 0, y1: 1.05, obj: g });
+    this.obstacles.push({ kind: 'low', x, z, len: 0.6, hw: 1.3, y0: 0, y1: 1.05, vz: 0, obj: g });
   }
 
   private addHigh(x: number, z: number) {
@@ -280,7 +384,7 @@ export class Spawner {
     top.position.y = 3.5;
     g.add(top);
     this.place(g, x, z);
-    this.obstacles.push({ kind: 'high', x, z, len: 0.6, hw: 1.3, y0: 1.15, y1: 3.7, obj: g });
+    this.obstacles.push({ kind: 'high', x, z, len: 0.6, hw: 1.3, y0: 1.15, y1: 3.7, vz: 0, obj: g });
   }
 
   private place(g: THREE.Object3D, x: number, z: number) {

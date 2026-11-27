@@ -20,7 +20,7 @@ export class World {
   private darkMat = new THREE.MeshLambertMaterial({ color: 0x3b3f45 });
   private grayMat = new THREE.MeshLambertMaterial({ color: 0x7c8187 });
   private poleGeo = new THREE.CylinderGeometry(0.14, 0.2, 9, 6);
-  private armGeo = new THREE.BoxGeometry(16.6, 0.18, 0.18);
+  private armGeo = new THREE.BoxGeometry(18.8, 0.18, 0.18);
   private wireMat = new THREE.LineBasicMaterial({ color: 0x1d1d1d });
   private wireGeo: THREE.BufferGeometry;
   private signMat: THREE.MeshBasicMaterial;
@@ -99,11 +99,12 @@ export class World {
     }
 
     // sleepers (instanced) + rails
-    const count = C.LANES.length * L;
+    const tracks = [...C.LANES, -C.OUTER_X, C.OUTER_X];
+    const count = tracks.length * L;
     const inst = new THREE.InstancedMesh(this.sleeperGeo, this.sleeperMat, count);
     const m = new THREE.Matrix4();
     let n = 0;
-    for (const x of C.LANES) {
+    for (const x of tracks) {
       for (let k = 0; k < L; k++) {
         m.makeTranslation(x, 0.09, -L / 2 + k + 0.5);
         inst.setMatrixAt(n++, m);
@@ -111,7 +112,7 @@ export class World {
     }
     inst.instanceMatrix.needsUpdate = true;
     g.add(inst);
-    for (const x of C.LANES) {
+    for (const x of tracks) {
       for (const s of [-1, 1]) {
         const r = new THREE.Mesh(this.railGeo, this.railMat);
         r.position.set(x + s * 0.72, 0.29, 0);
@@ -121,7 +122,7 @@ export class World {
 
     // buildings on both sides (painted facade faces the tracks)
     for (const s of [-1, 1]) {
-      const H = 15 + Math.random() * 7;
+      const H = 12 + Math.random() * 6;
       const geo = new THREE.BoxGeometry(8, H, L);
       const face = s > 0 ? 1 : 0; // inner face: -x for right side, +x for left side
       const uv = geo.attributes.uv as THREE.BufferAttribute;
@@ -140,7 +141,7 @@ export class World {
       for (const z of [-6, 6]) {
         if (Math.random() < 0.25) continue;
         const p = this.makePalm();
-        p.position.set(s * 9.6, 0, z + (Math.random() - 0.5) * 3);
+        p.position.set(s * 10.6, 0, z + (Math.random() - 0.5) * 3);
         p.rotation.y = Math.random() * Math.PI * 2;
         g.add(p);
       }
@@ -149,7 +150,7 @@ export class World {
     // electric poles + overhead wires
     for (const s of [-1, 1]) {
       const pole = new THREE.Mesh(this.poleGeo, this.darkMat);
-      pole.position.set(s * 8.3, 4.5, 0);
+      pole.position.set(s * 9.4, 4.5, 0);
       g.add(pole);
     }
     const arm = new THREE.Mesh(this.armGeo, this.darkMat);
@@ -186,10 +187,10 @@ export class World {
   private addGantry(g: THREE.Group) {
     for (const s of [-1, 1]) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 10.6, 0.6), this.grayMat);
-      p.position.set(s * 8.9, 5.3, 0);
+      p.position.set(s * 9.8, 5.3, 0);
       g.add(p);
     }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(18.4, 0.9, 0.7), this.grayMat);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(20.6, 0.9, 0.7), this.grayMat);
     beam.position.set(0, 10.5, 0);
     g.add(beam);
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(11, 5.5), this.signMat);
@@ -198,17 +199,17 @@ export class World {
   }
 
   private addFootbridge(g: THREE.Group) {
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(19, 0.5, 3), this.grayMat);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(21, 0.5, 3), this.grayMat);
     deck.position.set(0, 6.1, 0);
     g.add(deck);
     for (const z of [-1.4, 1.4]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(19, 1, 0.15), this.darkMat);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(21, 1, 0.15), this.darkMat);
       rail.position.set(0, 6.85, z);
       g.add(rail);
     }
     for (const s of [-1, 1]) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(1, 6, 1), this.grayMat);
-      p.position.set(s * 9, 3, 0);
+      p.position.set(s * 10, 3, 0);
       g.add(p);
     }
   }

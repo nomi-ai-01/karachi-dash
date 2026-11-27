@@ -52,6 +52,7 @@ export class Game {
     this.world = new World(assets);
     this.scene.add(this.world.root);
     this.spawner = new Spawner(this.scene, assets);
+    this.spawner.onHorn = () => audio.horn();
     this.player = new Player(assets);
     this.player.addTo(this.scene);
 
@@ -145,21 +146,22 @@ export class Game {
     let sx = 0;
     let sy = 0;
     let down = false;
+    let fired = false;
     el.addEventListener('pointerdown', (e) => {
       audio.unlock();
       down = true;
+      fired = false;
       sx = e.clientX;
       sy = e.clientY;
     });
     el.addEventListener('pointermove', (e) => {
-      if (!down) return;
+      if (!down || fired) return;
       const dx = e.clientX - sx;
       const dy = e.clientY - sy;
-      if (Math.max(Math.abs(dx), Math.abs(dy)) < 28) return;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 30) return;
+      fired = true; // one swipe = one move (lift your finger for the next one)
       if (Math.abs(dx) > Math.abs(dy)) this.act(dx > 0 ? 'right' : 'left');
       else this.act(dy > 0 ? 'slide' : 'jump');
-      sx = e.clientX;
-      sy = e.clientY;
     });
     const up = () => (down = false);
     el.addEventListener('pointerup', up);
@@ -302,6 +304,7 @@ export class Game {
       this.player.update(dt, 0);
       if (this.deadT > 1.0 && $('over').classList.contains('hidden')) this.showGameOver();
     } else if (this.state === 'menu') {
+      this.spawner.update(0, dt, 0, 0); // side trains keep passing behind the menu
       this.player.update(dt, 0);
     }
     this.updateCamera(dt);
@@ -331,8 +334,8 @@ export class Game {
       pos = new THREE.Vector3(1.1, 1.5, 4.0);
       look = new THREE.Vector3(0, 1.0, 0);
     } else {
-      pos = new THREE.Vector3(px * 0.55, 3.7, 7.4);
-      look = new THREE.Vector3(px * 0.35, 1.4, -9);
+      pos = new THREE.Vector3(px * 0.55, 3.2, 6.2);
+      look = new THREE.Vector3(px * 0.35, 1.6, -10);
     }
     const k = 1 - Math.exp(-dt * (this.state === 'menu' ? 4 : 7));
     this.camPos.lerp(pos, k);

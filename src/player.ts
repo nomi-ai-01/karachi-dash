@@ -327,7 +327,7 @@ export class Player {
     if (this.mixer) {
       if (this.current === 'run') {
         const a = this.actions.run;
-        if (a) a.timeScale = THREE.MathUtils.clamp(speed / 18, 0.8, 1.6);
+        if (a) a.timeScale = THREE.MathUtils.clamp(speed / 14, 1.0, 1.6);
       }
       this.mixer.update(dt);
     }

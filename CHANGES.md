@@ -23,3 +23,11 @@
 
 ## Nahi use huay (bohat bhari)
 low_poly_town (1M tris, 68 MB), bombardier (380k tris), train_car_56 (229k tris, 43 MB), game_low_poly_buildings (50 MB), dragon_attack, Highway (4000 unit scene), Dining car (train nahi, ek bara block hai).
+
+## Naye characters + extras (is update mein)
+- **2 naye character** menu mein: `Ch03` aur `Sporty Granny`. Menu mein PLAY ke upar ◀ ▶ buttons se badalte hain, choice save hoti hai (`save.ts` -> `char`).
+- Files: `public/models/ch03/` aur `public/models/granny/` (Character, Run, Idle, Jump, Slide, Die). Asal FBX 21MB har ek thi (textures andar embedded), ab ~2MB character + <1MB har animation. Sirf diffuse texture 1024px rakhi gayi.
+- Ch03 ki `Running_Slide.fbx` mein koi animation thi hi nahi (khali export), is liye Ch03 ke liye Granny ki slide use hoti hai (`slideHipScale` in `player.ts`). Mixamo se Ch03 ki slide dobara download karein to `public/models/ch03/Slide.fbx` replace kar dein.
+- Naye buildings: Kenney City Kit Commercial (10) + Industrial (8) -> `public/models/commercial/`, `industrial/`.
+- Naye trees: `tree_low_poly` (2 trees) + `fir` -> `public/models/trees/`. Raste ke kinare palms ke saath aate hain.
+- Nahi use hua: `61-low-poly-ground.rar` (RAR file khul nahi saki, zip bana ke bhejein) aur `.blend` trees (Blender file, game mein seedha nahi chalti).

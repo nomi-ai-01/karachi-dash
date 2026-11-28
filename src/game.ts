@@ -44,7 +44,7 @@ export class Game {
 
     // sharper textures at grazing angles (tracks, ground, buildings)
     const maxAniso = this.renderer.capabilities.getMaxAnisotropy();
-    for (const t of Object.values(assets)) (t as THREE.Texture).anisotropy = maxAniso;
+    for (const t of Object.values(assets)) if (t instanceof THREE.Texture) t.anisotropy = maxAniso;
 
     const sky = new THREE.Color(0xd6ebff);
     this.scene.background = this.makeSky();

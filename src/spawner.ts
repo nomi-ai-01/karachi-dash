@@ -61,7 +61,11 @@ export class Spawner {
   private coinGeo: THREE.CylinderGeometry;
   private coinMats: THREE.Material[];
 
+  private carVariant: THREE.Group[] = [];
+  private baseCar?: THREE.Group;
+
   constructor(private scene: THREE.Scene, a: Assets) {
+    this.baseCar = a.trainModel;
     a.sideGreen.wrapS = a.sideRed.wrapS = THREE.RepeatWrapping;
     this.matGreen = new THREE.MeshBasicMaterial({ map: a.sideGreen, side: THREE.DoubleSide });
     this.matRed = new THREE.MeshBasicMaterial({ map: a.sideRed, side: THREE.DoubleSide });
@@ -288,7 +292,55 @@ export class Spawner {
     return g;
   }
 
+  /** Green or red version of the carriage model (only the body paint changes). */
+  private carOf(red: boolean): THREE.Group | undefined {
+    if (!this.baseCar) return undefined;
+    const key = red ? 1 : 0;
+    if (this.carVariant[key]) return this.carVariant[key];
+    const v = this.baseCar.clone(true);
+    const cache = new Map<THREE.Material, THREE.Material>();
+    v.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const list = Array.isArray(m.material) ? m.material : [m.material];
+      const out = list.map((mt) => {
+        let c = cache.get(mt);
+        if (!c) {
+          c = mt.clone();
+          if (c.name === 'Cream') (c as THREE.MeshStandardMaterial).color.set(red ? 0xc23b2e : 0x1f8a4c);
+          cache.set(mt, c);
+        }
+        return c;
+      });
+      m.material = Array.isArray(m.material) ? out : out[0];
+    });
+    this.carVariant[key] = v;
+    return v;
+  }
+
   private makeTrainObj(len: number, red: boolean) {
+    const car = this.carOf(red);
+    if (car) {
+      const CAR_LEN = 13.96;
+      const g = new THREE.Group();
+      const n = Math.max(1, Math.round(len / CAR_LEN));
+      for (let i = 0; i < n; i++) {
+        const c = car.clone();
+        c.scale.z = len / (n * CAR_LEN);
+        c.position.set(0, 0.35, -len / 2 + ((i + 0.5) * len) / n);
+        g.add(c);
+      }
+      const under = new THREE.Mesh(this.underGeo, this.matDark);
+      under.scale.z = len - 1;
+      under.position.y = 0.3;
+      g.add(under);
+      for (const zz of [len / 2 - 3, -len / 2 + 3]) {
+        const b = new THREE.Mesh(this.bogieGeo, this.matDark);
+        b.position.set(0, 0.25, zz);
+        g.add(b);
+      }
+      return g;
+    }
     const g = new THREE.Group();
     const side = red ? this.matRed : this.matGreen;
     const body = new THREE.Mesh(this.trainGeo(len), [side, this.matRoof, this.matSolidGreen, this.matDark]);

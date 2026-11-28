@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export interface Assets {
   sideGreen: THREE.Texture;
@@ -12,6 +13,8 @@ export interface Assets {
   boy: THREE.Texture;
   coin: THREE.Texture;
   stripe: THREE.Texture;
+  trainModel?: THREE.Group; // one train carriage (public/tex/train.glb)
+  buildingModel?: THREE.Group; // roadside building (public/tex/building.glb)
 }
 
 const FILES: Record<string, string> = {
@@ -116,7 +119,28 @@ export async function loadAssets(onProgress: (p: number) => void): Promise<Asset
       onProgress(done / keys.length);
     }),
   );
+  // 3D models (optional: the game falls back to the old textured boxes)
+  const gl = new GLTFLoader();
+  const [tm, bm] = await Promise.allSettled([
+    gl.loadAsync('tex/train.glb'),
+    gl.loadAsync('tex/building.glb'),
+  ]);
+  const prep = (r: PromiseSettledResult<{ scene: THREE.Group }>, name: string) => {
+    if (r.status !== 'fulfilled') {
+      console.warn('[Assets] model failed:', name, r.reason);
+      return undefined;
+    }
+    r.value.scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const mt of mats as THREE.MeshStandardMaterial[]) if (mt.map) mt.map.anisotropy = 8;
+    });
+    return r.value.scene;
+  };
   return {
+    trainModel: prep(tm, 'train'),
+    buildingModel: prep(bm, 'building'),
     sideGreen: loaded.sideGreen,
     sideRed: loaded.sideRed,
     front: loaded.front,

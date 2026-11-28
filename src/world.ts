@@ -34,7 +34,10 @@ export class World {
   private whiteMat = new THREE.MeshLambertMaterial({ color: 0xf1ede2 });
   private archMat = new THREE.MeshLambertMaterial({ color: 0x4a4a52 });
 
+  private bModel?: THREE.Group;
+
   constructor(a: Assets) {
+    this.bModel = a.buildingModel;
     a.gravel.wrapS = a.gravel.wrapT = THREE.RepeatWrapping;
     a.gravel.repeat.set(16, 12);
     a.building.wrapS = a.building.wrapT = THREE.MirroredRepeatWrapping;
@@ -126,6 +129,18 @@ export class World {
 
     // buildings on both sides (painted facade faces the tracks)
     for (const s of [-1, 1]) {
+      if (this.bModel) {
+        const b = this.bModel.clone();
+        // model is 24 wide x 14 high x 42 long: squeeze it to one track segment
+        b.scale.set(0.55, 0.85 + Math.random() * 0.35, L / 42);
+        b.position.set(s * 18.6, 0, 0);
+        b.rotation.y = Math.random() < 0.5 ? 0 : Math.PI;
+        b.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+        });
+        g.add(b);
+        continue;
+      }
       const H = 12 + Math.random() * 6;
       const geo = new THREE.BoxGeometry(8, H, L);
       const face = s > 0 ? 1 : 0; // inner face: -x for right side, +x for left side

@@ -21,7 +21,7 @@ export class World {
   private darkMat = new THREE.MeshLambertMaterial({ color: 0x3b3f45 });
   private grayMat = new THREE.MeshLambertMaterial({ color: 0x7c8187 });
   private poleGeo = new THREE.CylinderGeometry(0.14, 0.2, 9, 6);
-  private armGeo = new THREE.BoxGeometry(18.8, 0.18, 0.18);
+  private armGeo = new THREE.BoxGeometry(15.2, 0.18, 0.18);
   private wireMat = new THREE.LineBasicMaterial({ color: 0x1d1d1d });
   private wireGeo: THREE.BufferGeometry;
   private signMat: THREE.MeshBasicMaterial;
@@ -44,7 +44,7 @@ export class World {
     a.gravel.repeat.set(16, 12);
     a.building.wrapS = a.building.wrapT = THREE.MirroredRepeatWrapping;
 
-    this.groundGeo = new THREE.PlaneGeometry(17, C.SEG_LEN);
+    this.groundGeo = new THREE.PlaneGeometry(14, C.SEG_LEN);
     this.groundMat = new THREE.MeshLambertMaterial({ map: a.gravel });
     this.paveGeo = new THREE.PlaneGeometry(6, C.SEG_LEN);
     this.sleeperMat = new THREE.MeshLambertMaterial({ map: a.sleeper });
@@ -112,7 +112,7 @@ export class World {
       const p = new THREE.Mesh(this.paveGeo, this.paveMat);
       p.receiveShadow = true;
       p.rotation.x = -Math.PI / 2;
-      p.position.set(s * 11.5, 0.02, 0);
+      p.position.set(s * 9.2, 0.02, 0);
       g.add(p);
     }
 
@@ -146,7 +146,7 @@ export class World {
         const b = this.bModel.clone();
         // model is 24 wide x 14 high x 42 long: squeeze it to one track segment
         b.scale.set(0.55, 0.85 + Math.random() * 0.35, L / 42);
-        b.position.set(s * 18.6, 0, 0);
+        b.position.set(s * 16.2, 0, 0);
         b.rotation.y = Math.random() < 0.5 ? 0 : Math.PI;
         g.add(b);
         continue;
@@ -161,7 +161,7 @@ export class World {
       }
       const mats = [0, 1, 2, 3, 4, 5].map((k) => (k === face ? this.facadeMat : this.plainWall));
       const b = new THREE.Mesh(geo, mats);
-      b.position.set(s * 16, H / 2, 0);
+      b.position.set(s * 13.5, H / 2, 0);
       g.add(b);
     }
 
@@ -170,7 +170,7 @@ export class World {
       for (const z of [-6, 6]) {
         if (Math.random() < 0.25) continue;
         const p = this.makePalm();
-        p.position.set(s * 10.6, 0, z + (Math.random() - 0.5) * 3);
+        p.position.set(s * 8.4, 0, z + (Math.random() - 0.5) * 3);
         p.rotation.y = Math.random() * Math.PI * 2;
         g.add(p);
       }
@@ -179,7 +179,7 @@ export class World {
     // electric poles + overhead wires
     for (const s of [-1, 1]) {
       const pole = new THREE.Mesh(this.poleGeo, this.darkMat);
-      pole.position.set(s * 9.4, 4.5, 0);
+      pole.position.set(s * 7.6, 4.5, 0);
       g.add(pole);
     }
     const arm = new THREE.Mesh(this.armGeo, this.darkMat);
@@ -207,10 +207,10 @@ export class World {
   private addGantry(g: THREE.Group) {
     for (const s of [-1, 1]) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 10.6, 0.6), this.grayMat);
-      p.position.set(s * 9.8, 5.3, 0);
+      p.position.set(s * 8, 5.3, 0);
       g.add(p);
     }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(20.6, 0.9, 0.7), this.grayMat);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(17, 0.9, 0.7), this.grayMat);
     beam.position.set(0, 10.5, 0);
     g.add(beam);
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(11, 5.5), this.signMat);
@@ -219,17 +219,17 @@ export class World {
   }
 
   private addFootbridge(g: THREE.Group) {
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(21, 0.5, 3), this.grayMat);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(17.5, 0.5, 3), this.grayMat);
     deck.position.set(0, 6.1, 0);
     g.add(deck);
     for (const z of [-1.4, 1.4]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(21, 1, 0.15), this.darkMat);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(17.5, 1, 0.15), this.darkMat);
       rail.position.set(0, 6.85, z);
       g.add(rail);
     }
     for (const s of [-1, 1]) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(1, 6, 1), this.grayMat);
-      p.position.set(s * 10, 3, 0);
+      p.position.set(s * 8.4, 3, 0);
       g.add(p);
     }
   }
@@ -258,7 +258,7 @@ export class World {
     const fin = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.25, 3, 6), this.grayMat);
     fin.position.y = 31;
     m.add(fin);
-    m.position.set(36, 0, 0);
+    m.position.set(32, 0, 0);
     m.rotation.y = Math.PI / 2 + 0.25;
     g.add(m);
   }
@@ -280,7 +280,7 @@ export class World {
       cap.position.set(s * 9.5, 27.5, 8);
       m.add(cap);
     }
-    m.position.set(-34, 0, 0);
+    m.position.set(-30, 0, 0);
     g.add(m);
   }
 }

@@ -180,12 +180,12 @@ export class Spawner {
     const lanes = this.shuffle([0, 1, 2]);
     let rowLen = 4;
 
-    if (early ? r < 0.5 : r < 0.22) {
+    if (early ? r < 0.5 : r < 0.16) {
       // plain coin line
       const l = lanes[0];
       this.coinLine(C.LANES[l], 0.9, 8, 2.2, z0);
       rowLen = 8 * 2.2;
-    } else if (early ? true : r < 0.4) {
+    } else if (early ? true : r < 0.3) {
       // low barriers (jump)
       const n = diff > 0.3 && Math.random() < 0.4 ? 2 : 1;
       for (let k = 0; k < n; k++) {
@@ -195,7 +195,7 @@ export class Spawner {
       }
       this.coinLine(C.LANES[lanes[2]], 0.9, 5, 2.2, z0);
       rowLen = 8;
-    } else if (r < 0.5) {
+    } else if (r < 0.38) {
       // high barriers (slide)
       const n = diff > 0.3 && Math.random() < 0.4 ? 2 : 1;
       for (let k = 0; k < n; k++) {
@@ -207,7 +207,7 @@ export class Spawner {
     } else {
       // blocking trains / containers: always leave one reachable free lane
       const isContainer = r >= 0.93;
-      const n = diff > 0.25 && Math.random() < 0.5 ? 2 : 1;
+      const n = diff > 0.1 && Math.random() < 0.6 ? 2 : 1;
       const cand = [0, 1, 2].filter((l) => Math.abs(l - this.safeLane) <= 1);
       const free = cand[Math.floor(Math.random() * cand.length)];
       let blocked = [0, 1, 2].filter((l) => l !== free);
@@ -235,7 +235,7 @@ export class Spawner {
       this.safeLane = coinLane;
     }
 
-    const gap = Math.max(16, speed * (1.05 - 0.3 * diff));
+    const gap = Math.max(14, speed * (0.9 - 0.25 * diff));
     this.cursor = dist + rowLen + gap;
   }
 
@@ -404,7 +404,7 @@ export class Spawner {
       const side = s === 0 ? -1 : 1;
       if (this.ambient.some((m) => m.side === side)) continue;
       const oncoming = Math.random() < 0.45;
-      const len = oncoming ? [24, 36][Math.floor(Math.random() * 2)] : [36, 48, 60][Math.floor(Math.random() * 3)];
+      const len = oncoming ? [12, 24][Math.floor(Math.random() * 2)] : [12, 24, 36][Math.floor(Math.random() * 3)];
       const g = this.makeTrainObj(len, Math.random() < 0.5);
       const z = -C.SPAWN_DIST - len / 2;
       this.place(g, side * C.OUTER_X, z);

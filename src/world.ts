@@ -89,10 +89,12 @@ export class World {
 
     // ballast + side pavements
     const ground = new THREE.Mesh(this.groundGeo, this.groundMat);
+    ground.receiveShadow = true;
     ground.rotation.x = -Math.PI / 2;
     g.add(ground);
     for (const s of [-1, 1]) {
       const p = new THREE.Mesh(this.paveGeo, this.paveMat);
+      p.receiveShadow = true;
       p.rotation.x = -Math.PI / 2;
       p.position.set(s * 11.5, 0.02, 0);
       g.add(p);
@@ -102,6 +104,8 @@ export class World {
     const tracks: number[] = C.OUTER_TRACKS ? [...C.LANES, -C.OUTER_X, C.OUTER_X] : [...C.LANES];
     const count = tracks.length * L;
     const inst = new THREE.InstancedMesh(this.sleeperGeo, this.sleeperMat, count);
+    inst.receiveShadow = true;
+    inst.castShadow = true;
     const m = new THREE.Matrix4();
     let n = 0;
     for (const x of tracks) {

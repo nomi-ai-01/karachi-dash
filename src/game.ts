@@ -38,15 +38,32 @@ export class Game {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     host.appendChild(this.renderer.domElement);
+
+    // sharper textures at grazing angles (tracks, ground, buildings)
+    const maxAniso = this.renderer.capabilities.getMaxAnisotropy();
+    for (const t of Object.values(assets)) (t as THREE.Texture).anisotropy = maxAniso;
 
     const sky = new THREE.Color(0xd6ebff);
     this.scene.background = this.makeSky();
     this.scene.fog = new THREE.Fog(sky, 45, 150);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0xa59270, 1.5));
-    const sun = new THREE.DirectionalLight(0xfff0d0, 1.6);
-    sun.position.set(-10, 18, 8);
-    this.scene.add(sun);
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0xa59270, 1.3));
+    const sun = new THREE.DirectionalLight(0xfff0d0, 2.2);
+    sun.position.set(-10, 18, -17);
+    sun.target.position.set(0, 0, -25);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -26;
+    sun.shadow.camera.right = 26;
+    sun.shadow.camera.top = 48;
+    sun.shadow.camera.bottom = -48;
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 120;
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.03;
+    this.scene.add(sun, sun.target);
 
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 400);
     this.world = new World(assets);

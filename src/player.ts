@@ -98,7 +98,7 @@ export class Player {
     this.root.add(this.visual);
     this.shadow = new THREE.Mesh(
       new THREE.CircleGeometry(0.55, 20),
-      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2, depthWrite: false }),
     );
     this.shadow.rotation.x = -Math.PI / 2;
     this.shadow.position.y = 0.32; // sits on the sleepers
@@ -234,6 +234,7 @@ export class Player {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.frustumCulled = false;
+      mesh.castShadow = true;
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const m of mats as THREE.MeshPhongMaterial[]) {
         if (forceMap) {

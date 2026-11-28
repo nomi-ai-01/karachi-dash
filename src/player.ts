@@ -177,7 +177,7 @@ export class Player {
         // bind every clip once now, otherwise the first jump/slide hitches while three.js sets it up
         for (const a of Object.values(this.actions)) {
           a!.play();
-          a!.setEffectiveWeight(0.0001);
+          a!.setEffectiveWeight(1);
         }
         this.mixer.update(0);
         this.mixer.stopAllAction();
@@ -364,6 +364,7 @@ export class Player {
     if (this.current === name && !once) return;
     a.reset();
     a.enabled = true;
+    a.setEffectiveWeight(1); // always start at full weight (fades are multiplied on top)
     a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
     a.clampWhenFinished = once;
     a.timeScale = fitSeconds ? a.getClip().duration / fitSeconds : name === 'die' ? 1.15 : 1;

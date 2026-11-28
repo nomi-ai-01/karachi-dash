@@ -11,17 +11,39 @@ const KID_DIR = 'models/kid/';
 
 interface CharacterSet {
   dir: string;
-  main: string; // skinned character + run clip
+  main: string; // skinned character file
+  mainHasRun: boolean; // true: main file also holds the run clip
   clips: Array<[Anim, string]>; // animation-only files (same Mixamo rig)
   texture?: string; // forced diffuse texture (file inside dir)
+  jumpLand?: number; // fraction of the jump clip at which the feet touch down
+  dieStart?: number; // seconds to skip in the die clip (skip the walking part)
+  flattenJump?: boolean; // remove hips rise from the jump clip (game moves the body)
 }
 
-// New kid character (rigged on Mixamo) is tried first, old Mixamo set is the fallback.
+// Ch46 (Mixamo) is tried first, then the kid, then the old Mixamo character.
 const SETS: CharacterSet[] = [
+  {
+    dir: 'models/ch46/',
+    main: 'Character.fbx',
+    mainHasRun: false,
+    texture: 'diffuse.jpg',
+    jumpLand: 0.73,
+    dieStart: 1.0,
+    flattenJump: true,
+    clips: [
+      ['run', 'Run.fbx'],
+      ['idle', 'Idle.fbx'],
+      ['jump', 'Jump.fbx'],
+      ['slide', 'Slide.fbx'],
+      ['die', 'Die.fbx'],
+    ],
+  },
   {
     dir: KID_DIR,
     main: 'Running.fbx',
+    mainHasRun: true,
     texture: 'kid_atlas.jpg',
+    dieStart: 1.0,
     clips: [
       ['idle', 'Idle.fbx'],
       ['jump', 'Running_Jump.fbx'],
@@ -32,6 +54,7 @@ const SETS: CharacterSet[] = [
   {
     dir: MIXAMO_DIR,
     main: 'Running.fbx',
+    mainHasRun: true,
     clips: [
       ['idle', 'Idle.fbx'],
       ['jump', 'Jumping.fbx'],
@@ -44,7 +67,8 @@ const SETS: CharacterSet[] = [
 const AIR_TIME = (2 * C.JUMP_V) / C.GRAVITY;
 
 /**
- * The player character. Loads the kid character (public/models/kid/) with Mixamo animation-only FBX clips; falls back to public/models/mixamo/.
+ * The player character. Loads the Ch46 Mixamo character (public/models/ch46/) with separate animation-only FBX clips;
+ * falls back to the kid (public/models/kid/) and then the old Mixamo character.
  * Falls back to the static boy.obj (procedural pose) and finally to a simple capsule figure.
  */
 export class Player {
@@ -67,6 +91,8 @@ export class Player {
   private yawTarget = 0.5;
   private t = 0;
   private running = false;
+  private jumpLand = 1;
+  private dieStart = 0;
 
   constructor(private assets: Assets) {
     this.root.add(this.visual);
@@ -110,33 +136,42 @@ export class Player {
 
         this.setupFbx(main, tex);
         this.mixer = new THREE.AnimationMixer(main);
+        this.jumpLand = set.jumpLand ?? 1;
+        this.dieStart = set.dieStart ?? 0;
 
-        // The main Running.fbx contains both the skinned character and its run clip.
-        if (main.animations[0]) {
-          main.animations[0].name = 'run';
-          this.actions.run = this.mixer.clipAction(main.animations[0]);
+        const register = (name: Anim, clip: THREE.AnimationClip) => {
+          clip.name = name;
+          // Mixamo clips can carry forward root motion; keep the body in place.
+          this.lockRoot(clip, name !== 'idle', name === 'jump' && !!set.flattenJump);
+          this.actions[name] = this.mixer!.clipAction(clip);
+        };
+
+        // Older sets: the main file also contains the run clip.
+        if (set.mainHasRun) {
+          const runClip = this.pickClip(main.animations);
+          if (runClip) register('run', runClip);
         }
 
-        // Each remaining file is animation-only and must share the same Mixamo rig.
+        // Every other clip comes from its own file and must share the same Mixamo rig.
         const loaded = await Promise.allSettled(
           set.clips.map(async ([name, file]) => {
             const animationModel = await fbx.loadAsync(`${set.dir}${file}`);
-            const clip = animationModel.animations[0];
+            const clip = this.pickClip(animationModel.animations);
             if (!clip || !this.mixer) {
               throw new Error(`No animation clip found in ${file}`);
             }
-            clip.name = name;
-            this.lockRoot(clip); // Mixamo clips may carry forward root motion
-            this.actions[name] = this.mixer.clipAction(clip);
+            register(name, clip);
             return name;
           }),
         );
 
         loaded.forEach((result, index) => {
           if (result.status === 'rejected') {
-            console.warn(`[Player] Optional animation failed: ${set.clips[index][1]}`, result.reason);
+            console.warn(`[Player] Animation failed: ${set.clips[index][1]}`, result.reason);
           }
         });
+
+        if (!this.actions.run) throw new Error('run animation missing');
 
         this.animated = !!this.actions.run;
         console.info('[Player] Animations ready:', Object.keys(this.actions).join(', '));
@@ -156,16 +191,32 @@ export class Player {
     this.setMenu();
   }
 
-  /** Remove forward/sideways drift of the Hips so jump/slide/die stay in place. */
-  private lockRoot(clip: THREE.AnimationClip) {
+  /** Mixamo exports contain a dummy "Take 001" stack: use the clip that really has motion. */
+  private pickClip(clips: THREE.AnimationClip[]): THREE.AnimationClip | undefined {
+    let best: THREE.AnimationClip | undefined;
+    for (const c of clips) {
+      if (!best || c.tracks.length > best.tracks.length) best = c;
+    }
+    return best && best.tracks.length > 0 ? best : undefined;
+  }
+
+  /**
+   * Keep the Hips in place: remove forward/sideways drift (root motion) from a clip.
+   * flattenY also removes the hips rise (used for jump, the game moves the body itself).
+   */
+  private lockRoot(clip: THREE.AnimationClip, lockXZ = true, flattenY = false) {
     for (const tr of clip.tracks) {
       if (!tr.name.endsWith('.position') || !/Hips/i.test(tr.name)) continue;
       const v = tr.values;
       const x0 = v[0];
+      const y0 = v[1];
       const z0 = v[2];
       for (let i = 0; i < v.length; i += 3) {
-        v[i] = x0;
-        v[i + 2] = z0;
+        if (lockXZ) {
+          v[i] = x0;
+          v[i + 2] = z0;
+        }
+        if (flattenY) v[i + 1] = y0;
       }
     }
   }
@@ -185,8 +236,13 @@ export class Player {
       mesh.frustumCulled = false;
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const m of mats as THREE.MeshPhongMaterial[]) {
-        if (forceMap) m.map = forceMap;
-        else if (!m.map) m.map = this.assets.boy;
+        if (forceMap) {
+          m.map = forceMap;
+          m.normalMap = null;
+          m.specularMap = null;
+          m.specular?.set(0x111111);
+          m.shininess = 8;
+        } else if (!m.map) m.map = this.assets.boy;
         m.color?.set(0xffffff);
         m.needsUpdate = true;
       }
@@ -234,7 +290,7 @@ export class Player {
     this.vy = C.JUMP_V;
     this.slideT = 0;
     this.pendingSlide = false;
-    this.play('jump', true, AIR_TIME);
+    this.play('jump', true, AIR_TIME / this.jumpLand);
     return true;
   }
 
@@ -295,7 +351,8 @@ export class Player {
     a.enabled = true;
     a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
     a.clampWhenFinished = once;
-    a.timeScale = fitSeconds ? a.getClip().duration / fitSeconds : 1;
+    a.timeScale = fitSeconds ? a.getClip().duration / fitSeconds : name === 'die' ? 1.15 : 1;
+    if (name === 'die' && this.dieStart > 0) a.time = this.dieStart;
     if (prev && prev !== a) prev.fadeOut(0.12);
     a.fadeIn(0.12).play();
     this.current = name;

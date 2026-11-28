@@ -334,8 +334,9 @@ export class Game {
       pos = new THREE.Vector3(1.1, 1.5, 4.0);
       look = new THREE.Vector3(0, 1.0, 0);
     } else {
-      pos = new THREE.Vector3(px * 0.55, 2.4, 4.4);
-      look = new THREE.Vector3(px * 0.35, 1.4, -9);
+      // Subway-Surfer style chase camera: higher and further back
+      pos = new THREE.Vector3(px * 0.5, 3.5, 6.4);
+      look = new THREE.Vector3(px * 0.35, 1.2, -12);
     }
     const k = 1 - Math.exp(-dt * (this.state === 'menu' ? 4 : 7));
     this.camPos.lerp(pos, k);

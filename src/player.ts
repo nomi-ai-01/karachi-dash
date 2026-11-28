@@ -327,6 +327,7 @@ export class Player {
     this.slideT = 0;
     this.yawTarget = 0.5;
     this.current = undefined;
+    this.mixer?.stopAllAction();
     this.resetPose();
     if (this.actions.idle) this.play('idle');
     else if (this.actions.run) this.play('run');
@@ -337,6 +338,7 @@ export class Player {
     this.alive = true;
     this.yawTarget = Math.PI; // model faces +Z, game runs towards -Z
     this.current = undefined;
+    this.mixer?.stopAllAction();
     this.resetPose();
     this.play('run');
   }
@@ -346,14 +348,16 @@ export class Player {
     const a = this.actions[name];
     if (!a) return;
     if (this.current === name && !once) return;
-    const prev = this.current ? this.actions[this.current] : undefined;
     a.reset();
     a.enabled = true;
     a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
     a.clampWhenFinished = once;
     a.timeScale = fitSeconds ? a.getClip().duration / fitSeconds : name === 'die' ? 1.15 : 1;
     if (name === 'die' && this.dieStart > 0) a.time = this.dieStart;
-    if (prev && prev !== a) prev.fadeOut(0.12);
+    for (const k of Object.keys(this.actions) as Anim[]) {
+      const other = this.actions[k];
+      if (other && other !== a) other.fadeOut(0.12);
+    }
     a.fadeIn(0.12).play();
     this.current = name;
   }

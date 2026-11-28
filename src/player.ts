@@ -102,7 +102,7 @@ export class Player {
           try {
             tex = await new THREE.TextureLoader().loadAsync(`${set.dir}${set.texture}`);
             tex.colorSpace = THREE.SRGBColorSpace;
-            tex.anisotropy = 8;
+            tex.anisotropy = 16;
           } catch (texErr) {
             console.warn('[Player] Character texture failed to load', texErr);
           }
@@ -126,6 +126,7 @@ export class Player {
               throw new Error(`No animation clip found in ${file}`);
             }
             clip.name = name;
+            this.lockRoot(clip); // Mixamo clips may carry forward root motion
             this.actions[name] = this.mixer.clipAction(clip);
             return name;
           }),
@@ -153,6 +154,20 @@ export class Player {
     // Nothing worked: static boy.obj / capsule fallback
     await this.loadFallback();
     this.setMenu();
+  }
+
+  /** Remove forward/sideways drift of the Hips so jump/slide/die stay in place. */
+  private lockRoot(clip: THREE.AnimationClip) {
+    for (const tr of clip.tracks) {
+      if (!tr.name.endsWith('.position') || !/Hips/i.test(tr.name)) continue;
+      const v = tr.values;
+      const x0 = v[0];
+      const z0 = v[2];
+      for (let i = 0; i < v.length; i += 3) {
+        v[i] = x0;
+        v[i + 2] = z0;
+      }
+    }
   }
 
   private setupFbx(obj: THREE.Group, forceMap?: THREE.Texture) {
@@ -327,7 +342,7 @@ export class Player {
     if (this.mixer) {
       if (this.current === 'run') {
         const a = this.actions.run;
-        if (a) a.timeScale = THREE.MathUtils.clamp(speed / 14, 1.0, 1.6);
+        if (a) a.timeScale = THREE.MathUtils.clamp(speed / 20, 1.0, 1.5);
       }
       this.mixer.update(dt);
     }

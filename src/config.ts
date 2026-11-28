@@ -7,13 +7,13 @@ export const C = {
   SEG_COUNT: 9,
   SPAWN_DIST: 125,
 
-  BASE_SPEED: 14,
-  MAX_SPEED: 32,
-  RAMP: 0.15, // m/s gained per second
+  BASE_SPEED: 20,
+  MAX_SPEED: 42,
+  RAMP: 0.2,  // m/s gained per second
 
   GRAVITY: 26,
   JUMP_V: 10.2,
-  SLIDE_T: 0.75,
+  SLIDE_T: 1.0,
 
   PLAYER_H: 1.7,
   VISUAL_H: 2.05, // drawn height of the boy (hitbox stays PLAYER_H)

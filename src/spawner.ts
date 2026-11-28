@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { C } from './config';
-import type { Assets } from './assets';
+import type { Assets, Kit } from './assets';
+import { PASS_STYLES, LOCOS, CARS } from './assets';
 
 export type ObstacleKind = 'train' | 'container' | 'low' | 'high';
 
@@ -72,9 +73,12 @@ export class Spawner {
 
   private carVariant: THREE.Group[] = [];
   private baseCar?: THREE.Group;
+  private kit?: Kit;
+  private zl = new Map<string, number>();
 
   constructor(private scene: THREE.Scene, a: Assets) {
     this.baseCar = a.trainModel;
+    this.kit = a.kit;
     a.sideGreen.wrapS = a.sideRed.wrapS = THREE.RepeatWrapping;
     this.matGreen = new THREE.MeshBasicMaterial({ map: a.sideGreen, side: THREE.DoubleSide });
     this.matRed = new THREE.MeshBasicMaterial({ map: a.sideRed, side: THREE.DoubleSide });
@@ -337,7 +341,42 @@ export class Spawner {
     return v;
   }
 
+  private zLen(name: string) {
+    let v = this.zl.get(name);
+    if (v === undefined) {
+      const b = new THREE.Box3().setFromObject(this.kit!.parts[name]);
+      v = Math.max(0.1, b.max.z - b.min.z);
+      this.zl.set(name, v);
+    }
+    return v;
+  }
+
+  /** Train built from light Kenney pieces: engine/head car at the front (+z), carriages behind. */
+  private kitTrain(len: number, passenger: boolean) {
+    const k = this.kit!;
+    const g = new THREE.Group();
+    const n = Math.max(2, Math.round(len / 4.8));
+    const slot = len / n;
+    const st = PASS_STYLES[Math.floor(Math.random() * PASS_STYLES.length)];
+    for (let i = 0; i < n; i++) {
+      const last = i === n - 1;
+      const name = passenger
+        ? `train-electric-${st}-${last ? 'a' : i === 0 ? 'c' : 'b'}`
+        : last
+          ? `train-${LOCOS[Math.floor(Math.random() * LOCOS.length)]}`
+          : `train-carriage-${CARS[Math.floor(Math.random() * CARS.length)]}`;
+      const src = k.parts[name];
+      if (!src) continue;
+      const c = src.clone(true);
+      c.scale.z = slot / this.zLen(name);
+      c.position.set(0, 0.3, -len / 2 + (i + 0.5) * slot);
+      g.add(c);
+    }
+    return g;
+  }
+
   private makeTrainObj(len: number, red: boolean) {
+    if (this.kit) return this.kitTrain(len, red);
     const car = this.carOf(red);
     if (car) {
       const CAR_LEN = 13.96;

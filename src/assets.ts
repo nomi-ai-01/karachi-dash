@@ -1,7 +1,40 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
+export interface Kit {
+  parts: Record<string, THREE.Object3D>;
+  houses: THREE.Object3D[];
+}
+export const PASS_STYLES = ['city', 'subway', 'bullet'];
+export const LOCOS = ['locomotive-a', 'locomotive-b', 'locomotive-c', 'diesel-a', 'diesel-b', 'diesel-c'];
+export const CARS = ['box', 'container-red', 'container-green', 'container-blue', 'tank', 'coal', 'wood', 'lumber', 'dirt', 'flatbed-wood'];
+const HOUSES = 'abcdefghijklmnopqrstu'.split('').map((c) => `building-type-${c}`);
+const KIT_PARTS = [
+  ...PASS_STYLES.flatMap((k) => ['a', 'b', 'c'].map((x) => `train-electric-${k}-${x}`)),
+  ...LOCOS.map((n) => `train-${n}`),
+  ...CARS.map((n) => `train-carriage-${n}`),
+  ...HOUSES,
+];
+
+/** Light Kenney models (1 mesh each, ~1000 triangles). Returns undefined if anything fails -> old models are used. */
+async function loadKit(gl: GLTFLoader): Promise<Kit | undefined> {
+  try {
+    const parts: Record<string, THREE.Object3D> = {};
+    await Promise.all(
+      KIT_PARTS.map(async (n) => {
+        const g = await gl.loadAsync(`models/kit/${n}.glb`);
+        parts[n] = g.scene;
+      }),
+    );
+    return { parts, houses: HOUSES.map((n) => parts[n]) };
+  } catch (e) {
+    console.warn('[Assets] kit models failed, using old models', e);
+    return undefined;
+  }
+}
+
 export interface Assets {
+  kit?: Kit;
   sideGreen: THREE.Texture;
   sideRed: THREE.Texture;
   front: THREE.Texture;
@@ -121,10 +154,11 @@ export async function loadAssets(onProgress: (p: number) => void): Promise<Asset
   );
   // 3D models (optional: the game falls back to the old textured boxes)
   const gl = new GLTFLoader();
-  const [tm, bm] = await Promise.allSettled([
-    gl.loadAsync('tex/train.glb'),
-    gl.loadAsync('tex/building.glb'),
-  ]);
+  const kit = await loadKit(gl);
+  const skip = { status: 'rejected', reason: 'using kit models' } as PromiseRejectedResult;
+  const [tm, bm] = kit
+    ? [skip, skip]
+    : await Promise.allSettled([gl.loadAsync('tex/train.glb'), gl.loadAsync('tex/building.glb')]);
   const prep = (r: PromiseSettledResult<{ scene: THREE.Group }>, name: string) => {
     if (r.status !== 'fulfilled') {
       console.warn('[Assets] model failed:', name, r.reason);
@@ -139,6 +173,7 @@ export async function loadAssets(onProgress: (p: number) => void): Promise<Asset
     return r.value.scene;
   };
   return {
+    kit,
     trainModel: prep(tm, 'train'),
     buildingModel: prep(bm, 'building'),
     sideGreen: loaded.sideGreen,

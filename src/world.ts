@@ -36,10 +36,12 @@ export class World {
   private archMat = new THREE.MeshLambertMaterial({ color: 0x4a4a52 });
 
   private bModel?: THREE.Group;
+  private houses: THREE.Object3D[] = [];
   private palmCrown!: THREE.BufferGeometry;
 
   constructor(a: Assets) {
     this.bModel = a.buildingModel;
+    this.houses = a.kit?.houses ?? [];
     a.gravel.wrapS = a.gravel.wrapT = THREE.RepeatWrapping;
     a.gravel.repeat.set(16, 12);
     a.building.wrapS = a.building.wrapT = THREE.MirroredRepeatWrapping;
@@ -142,6 +144,18 @@ export class World {
 
     // buildings on both sides (painted facade faces the tracks)
     for (const s of [-1, 1]) {
+      if (this.houses.length) {
+        // two light houses per side per segment; the door side faces the tracks
+        for (const zz of [-6, 6]) {
+          const b = this.houses[Math.floor(Math.random() * this.houses.length)].clone(true);
+          const sc = 8.2 + Math.random();
+          b.scale.set(sc, sc * (1.15 + Math.random() * 0.9), sc);
+          b.position.set(s * 14.8, 0, zz);
+          b.rotation.y = s < 0 ? Math.PI / 2 : -Math.PI / 2;
+          g.add(b);
+        }
+        continue;
+      }
       if (this.bModel) {
         const b = this.bModel.clone();
         // model is 24 wide x 14 high x 42 long: squeeze it to one track segment

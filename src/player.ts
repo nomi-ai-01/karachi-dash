@@ -77,6 +77,7 @@ export class Player {
   private shadow: THREE.Mesh;
 
   lane = 1;
+  prevLane = 1;
   x = 0;
   y = 0;
   vy = 0;
@@ -288,8 +289,18 @@ export class Player {
     if (!this.alive || !this.running) return false;
     const n = Math.max(0, Math.min(2, this.lane + d));
     if (n === this.lane) return false;
+    this.prevLane = this.lane;
     this.lane = n;
     return true;
+  }
+
+  /** how far the body still is from the centre of its lane (>0 while changing lanes) */
+  laneOffset() {
+    return Math.abs(this.x - C.LANES[this.lane]);
+  }
+  /** stumble: go back to the lane we came from */
+  bounce() {
+    this.lane = this.prevLane;
   }
 
   canJump() {
@@ -335,6 +346,7 @@ export class Player {
     this.running = false;
     this.alive = true;
     this.lane = 1;
+    this.prevLane = 1;
     this.x = 0;
     this.y = 0;
     this.vy = 0;

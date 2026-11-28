@@ -21,7 +21,7 @@ export class World {
   private darkMat = new THREE.MeshLambertMaterial({ color: 0x3b3f45 });
   private grayMat = new THREE.MeshLambertMaterial({ color: 0x7c8187 });
   private poleGeo = new THREE.CylinderGeometry(0.14, 0.2, 9, 6);
-  private armGeo = new THREE.BoxGeometry(15.2, 0.18, 0.18);
+  private armGeo = new THREE.BoxGeometry(10.8, 0.18, 0.18);
   private wireMat = new THREE.LineBasicMaterial({ color: 0x1d1d1d });
   private wireGeo: THREE.BufferGeometry;
   private signMat: THREE.MeshBasicMaterial;
@@ -35,6 +35,23 @@ export class World {
   private whiteMat = new THREE.MeshLambertMaterial({ color: 0xf1ede2 });
   private archMat = new THREE.MeshLambertMaterial({ color: 0x4a4a52 });
 
+  private signImg!: CanvasImageSource;
+  private wraps = 0;
+  private cityIdx = 0;
+  private readonly CITIES: [string, string][] = [
+    ['KARACHI', 'کراچی'],
+    ['HYDERABAD', 'حیدرآباد'],
+    ['MULTAN', 'ملتان'],
+    ['BAHAWALPUR', 'بہاولپور'],
+    ['LAHORE', 'لاہور'],
+    ['FAISALABAD', 'فیصل آباد'],
+    ['RAWALPINDI', 'راولپنڈی'],
+    ['ISLAMABAD', 'اسلام آباد'],
+    ['PESHAWAR', 'پشاور'],
+    ['QUETTA', 'کوئٹہ'],
+    ['SUKKUR', 'سکھر'],
+    ['SIALKOT', 'سیالکوٹ'],
+  ];
   private bModel?: THREE.Group;
   private houses: THREE.Object3D[] = [];
   private palmCrown!: THREE.BufferGeometry;
@@ -46,7 +63,7 @@ export class World {
     a.gravel.repeat.set(16, 12);
     a.building.wrapS = a.building.wrapT = THREE.MirroredRepeatWrapping;
 
-    this.groundGeo = new THREE.PlaneGeometry(14, C.SEG_LEN);
+    this.groundGeo = new THREE.PlaneGeometry(9.6, C.SEG_LEN);
     this.groundMat = new THREE.MeshLambertMaterial({ map: a.gravel });
     this.paveGeo = new THREE.PlaneGeometry(6, C.SEG_LEN);
     this.sleeperMat = new THREE.MeshLambertMaterial({ map: a.sleeper });
@@ -84,12 +101,14 @@ export class World {
     this.wireGeo = new THREE.BufferGeometry();
     this.wireGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
 
+    this.signImg = a.sign.image as CanvasImageSource;
     for (let i = 0; i < C.SEG_COUNT; i++) {
       const seg = this.buildSegment(i);
       seg.position.z = 12 - i * C.SEG_LEN;
       this.segs.push(seg);
       this.root.add(seg);
     }
+    this.showGantry(this.segs[1]); // the first sign: Karachi
   }
 
   update(dz: number) {
@@ -97,7 +116,10 @@ export class World {
     const total = C.SEG_COUNT * C.SEG_LEN;
     for (const s of this.segs) {
       s.position.z += dz;
-      if (s.position.z > C.SEG_LEN * 1.5) s.position.z -= total;
+      if (s.position.z > C.SEG_LEN * 1.5) {
+        s.position.z -= total;
+        this.onWrap(s);
+      }
     }
   }
 
@@ -114,7 +136,7 @@ export class World {
       const p = new THREE.Mesh(this.paveGeo, this.paveMat);
       p.receiveShadow = true;
       p.rotation.x = -Math.PI / 2;
-      p.position.set(s * 9.2, 0.02, 0);
+      p.position.set(s * 7.2, 0.02, 0);
       g.add(p);
     }
 
@@ -150,7 +172,7 @@ export class World {
           const b = this.houses[Math.floor(Math.random() * this.houses.length)].clone(true);
           const sc = 8.2 + Math.random();
           b.scale.set(sc, sc * (1.15 + Math.random() * 0.9), sc);
-          b.position.set(s * 14.8, 0, zz);
+          b.position.set(s * 11, 0, zz);
           b.rotation.y = s < 0 ? Math.PI / 2 : -Math.PI / 2;
           g.add(b);
         }
@@ -175,7 +197,7 @@ export class World {
       }
       const mats = [0, 1, 2, 3, 4, 5].map((k) => (k === face ? this.facadeMat : this.plainWall));
       const b = new THREE.Mesh(geo, mats);
-      b.position.set(s * 13.5, H / 2, 0);
+      b.position.set(s * 10.5, H / 2, 0);
       g.add(b);
     }
 
@@ -184,7 +206,7 @@ export class World {
       for (const z of [-6, 6]) {
         if (Math.random() < 0.25) continue;
         const p = this.makePalm();
-        p.position.set(s * 8.4, 0, z + (Math.random() - 0.5) * 3);
+        p.position.set(s * 6, 0, z + (Math.random() - 0.5) * 3);
         p.rotation.y = Math.random() * Math.PI * 2;
         g.add(p);
       }
@@ -193,7 +215,7 @@ export class World {
     // electric poles + overhead wires
     for (const s of [-1, 1]) {
       const pole = new THREE.Mesh(this.poleGeo, this.darkMat);
-      pole.position.set(s * 7.6, 4.5, 0);
+      pole.position.set(s * 5.2, 4.5, 0);
       g.add(pole);
     }
     const arm = new THREE.Mesh(this.armGeo, this.darkMat);
@@ -202,7 +224,7 @@ export class World {
     g.add(new THREE.LineSegments(this.wireGeo, this.wireMat));
 
     // landmark / props by segment index
-    if (i % 4 === 1) this.addGantry(g);
+    this.addGantry(g);
     if (i % 4 === 3) this.addFootbridge(g);
     if (i === 2) this.addMazar(g);
     if (i === 6) this.addMosque(g);
@@ -218,32 +240,89 @@ export class World {
     return palm;
   }
 
+  /** Every segment owns a gantry, but only one is shown every ~430 m, each time with the next city name. */
   private addGantry(g: THREE.Group) {
+    const gg = new THREE.Group();
     for (const s of [-1, 1]) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 10.6, 0.6), this.grayMat);
-      p.position.set(s * 8, 5.3, 0);
-      g.add(p);
+      p.position.set(s * 5.4, 5.3, 0);
+      gg.add(p);
     }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(17, 0.9, 0.7), this.grayMat);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(11.6, 0.9, 0.7), this.grayMat);
     beam.position.set(0, 10.5, 0);
-    g.add(beam);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(11, 5.5), this.signMat);
-    sign.position.set(0, 7.5, 0.5);
-    g.add(sign);
+    gg.add(beam);
+    const cv = document.createElement('canvas');
+    cv.width = 512;
+    cv.height = 256;
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(9.6, 4.8),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }),
+    );
+    sign.position.set(0, 7.6, 0.5);
+    gg.add(sign);
+    gg.visible = false;
+    g.add(gg);
+    g.userData.gantry = gg;
+    g.userData.signTex = tex;
+  }
+
+  private showGantry(seg: THREE.Group) {
+    const gg = seg.userData.gantry as THREE.Group | undefined;
+    const tex = seg.userData.signTex as THREE.CanvasTexture | undefined;
+    if (!gg || !tex) return;
+    const [en, ur] = this.CITIES[this.cityIdx++ % this.CITIES.length];
+    const cv = tex.image as HTMLCanvasElement;
+    const c = cv.getContext('2d')!;
+    c.clearRect(0, 0, 512, 256);
+    c.drawImage(this.signImg, 0, 0, 512, 256);
+    c.fillStyle = '#0f5a2e';
+    c.strokeStyle = '#f4e2b0';
+    c.lineWidth = 3;
+    c.beginPath();
+    c.roundRect(150, 62, 212, 134, 14);
+    c.fill();
+    c.stroke();
+    c.fillStyle = '#ffffff';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.direction = 'rtl';
+    let fs = 64;
+    c.font = `bold ${fs}px 'Noto Nastaliq Urdu','Jameel Noori Nastaleeq','Urdu Typesetting','Segoe UI',Arial,serif`;
+    while (c.measureText(ur).width > 190 && fs > 24) {
+      fs -= 4;
+      c.font = `bold ${fs}px 'Noto Nastaliq Urdu','Jameel Noori Nastaleeq','Urdu Typesetting','Segoe UI',Arial,serif`;
+    }
+    c.fillText(ur, 256, 118);
+    c.direction = 'ltr';
+    c.fillStyle = '#ffd24a';
+    c.font = "bold 22px system-ui, Arial, sans-serif";
+    c.fillText(en, 256, 172);
+    tex.needsUpdate = true;
+    gg.visible = true;
+  }
+
+  private onWrap(seg: THREE.Group) {
+    const gg = seg.userData.gantry as THREE.Group | undefined;
+    if (!gg) return;
+    gg.visible = false;
+    if (++this.wraps % 18 === 0) this.showGantry(seg);
   }
 
   private addFootbridge(g: THREE.Group) {
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(17.5, 0.5, 3), this.grayMat);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(12, 0.5, 3), this.grayMat);
     deck.position.set(0, 6.1, 0);
     g.add(deck);
     for (const z of [-1.4, 1.4]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(17.5, 1, 0.15), this.darkMat);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(12, 1, 0.15), this.darkMat);
       rail.position.set(0, 6.85, z);
       g.add(rail);
     }
     for (const s of [-1, 1]) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(1, 6, 1), this.grayMat);
-      p.position.set(s * 8.4, 3, 0);
+      p.position.set(s * 5.8, 3, 0);
       g.add(p);
     }
   }
@@ -272,7 +351,7 @@ export class World {
     const fin = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.25, 3, 6), this.grayMat);
     fin.position.y = 31;
     m.add(fin);
-    m.position.set(32, 0, 0);
+    m.position.set(30, 0, 0);
     m.rotation.y = Math.PI / 2 + 0.25;
     g.add(m);
   }

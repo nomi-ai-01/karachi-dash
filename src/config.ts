@@ -17,7 +17,7 @@ export const C = {
 
   PLAYER_H: 1.7,
   VISUAL_H: 1.85, // drawn height of the boy (hitbox stays PLAYER_H)
-  OUTER_TRACKS: true, // decorative side tracks + trains (reference uses 3 tracks only)
+  OUTER_TRACKS: false, // decorative side tracks + trains (reference uses 3 tracks only)
   SLIDE_H: 0.75,
   PLAYER_HW: 0.3,
   PLAYER_HD: 0.3,

@@ -20,6 +20,8 @@ export class Game {
   private player: Player;
   private clock = new THREE.Clock();
   private pr = 1;
+  private invuln = 0;
+  private stumbleT = 0;
   private slowT = 0;
   private slowN = 0;
   private buf: 'jump' | 'slide' | null = null;
@@ -266,6 +268,8 @@ export class Game {
     this.deadT = 0;
     this.paused = false;
     this.buf = null;
+    this.invuln = 0;
+    this.stumbleT = 0;
     this.player.setMenu();
     this.player.startRun();
     this.state = 'run';
@@ -340,7 +344,20 @@ export class Game {
         audio.coin();
       }
       this.score = Math.floor(this.dist) + this.coinsRun * 10;
-      if (this.spawner.collides(this.player.x, this.player.y, h)) this.crash();
+      this.invuln = Math.max(0, this.invuln - dt);
+      this.stumbleT = Math.max(0, this.stumbleT - dt);
+      if (this.invuln <= 0 && this.spawner.collides(this.player.x, this.player.y, h)) {
+        // Subway Surfers rule: clipping the SIDE of something while changing lane = stumble (go back, keep running);
+        // a second hit within 5 s, or hitting something head-on, ends the run.
+        const side = this.player.laneOffset() > 0.45 && this.player.prevLane !== this.player.lane;
+        if (side && this.stumbleT <= 0) {
+          this.player.bounce();
+          this.stumbleT = 5;
+          this.invuln = 0.9;
+          this.shake = 0.3;
+          audio.swish();
+        } else this.crash();
+      }
       this.hudT -= dt;
       if (this.hudT <= 0) this.updateHud();
     } else if (this.state === 'dead') {

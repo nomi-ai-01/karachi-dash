@@ -7,10 +7,44 @@ import type { Assets } from './assets';
 type Anim = 'run' | 'idle' | 'jump' | 'fall' | 'slide' | 'die';
 const MODEL_DIR = 'models/boy/';
 const MIXAMO_DIR = 'models/mixamo/';
+const KID_DIR = 'models/kid/';
+
+interface CharacterSet {
+  dir: string;
+  main: string; // skinned character + run clip
+  clips: Array<[Anim, string]>; // animation-only files (same Mixamo rig)
+  texture?: string; // forced diffuse texture (file inside dir)
+}
+
+// New kid character (rigged on Mixamo) is tried first, old Mixamo set is the fallback.
+const SETS: CharacterSet[] = [
+  {
+    dir: KID_DIR,
+    main: 'Running.fbx',
+    texture: 'kid_atlas.jpg',
+    clips: [
+      ['idle', 'Idle.fbx'],
+      ['jump', 'Running_Jump.fbx'],
+      ['slide', 'Running_Slide.fbx'],
+      ['die', 'Walking_To_Dying.fbx'],
+    ],
+  },
+  {
+    dir: MIXAMO_DIR,
+    main: 'Running.fbx',
+    clips: [
+      ['idle', 'Idle.fbx'],
+      ['jump', 'Jumping.fbx'],
+      ['fall', 'Falling.fbx'],
+      ['slide', 'Running_Slide.fbx'],
+      ['die', 'Dying.fbx'],
+    ],
+  },
+];
 const AIR_TIME = (2 * C.JUMP_V) / C.GRAVITY;
 
 /**
- * The player character. Loads the new Mixamo character and animation-only FBX clips from public/models/mixamo/.
+ * The player character. Loads the kid character (public/models/kid/) with Mixamo animation-only FBX clips; falls back to public/models/mixamo/.
  * Falls back to the static boy.obj (procedural pose) and finally to a simple capsule figure.
  */
 export class Player {
@@ -51,81 +85,77 @@ export class Player {
 
   async load() {
     const fbx = new FBXLoader();
-    let main: THREE.Group | null = null;
 
-    // Prefer the newly supplied Mixamo character. Keep the old project model
-    // as a fallback so the game can still boot if the new asset is missing.
-    try {
-      main = await fbx.loadAsync(`${MIXAMO_DIR}Running.fbx`);
-      console.info('[Player] Loaded new Mixamo character: Running.fbx');
-    } catch (newModelError) {
-      console.warn('[Player] New Mixamo model unavailable; trying legacy run.fbx', newModelError);
+    for (const set of SETS) {
+      let main: THREE.Group;
       try {
-        main = await fbx.loadAsync(`${MODEL_DIR}run.fbx`);
-      } catch {
-        main = null;
-      }
-    }
-
-    if (!main) {
-      await this.loadFallback();
-      this.setMenu();
-      return;
-    }
-
-    try {
-      this.setupFbx(main);
-      this.mixer = new THREE.AnimationMixer(main);
-
-      // The main Running.fbx contains both the skinned character and its run clip.
-      if (main.animations[0]) {
-        main.animations[0].name = 'run';
-        this.actions.run = this.mixer.clipAction(main.animations[0]);
+        main = await fbx.loadAsync(`${set.dir}${set.main}`);
+        console.info(`[Player] Loaded character: ${set.dir}${set.main}`);
+      } catch (err) {
+        console.warn(`[Player] Character set ${set.dir} unavailable, trying next`, err);
+        continue;
       }
 
-      // Each remaining file is animation-only and must share the same Mixamo rig.
-      const animationFiles: Array<[Anim, string]> = [
-        ['idle', 'Idle.fbx'],
-        ['jump', 'Jumping.fbx'],
-        ['fall', 'Falling.fbx'],
-        ['slide', 'Running_Slide.fbx'],
-        ['die', 'Dying.fbx'],
-      ];
-
-      const loaded = await Promise.allSettled(
-        animationFiles.map(async ([name, file]) => {
-          const animationModel = await fbx.loadAsync(`${MIXAMO_DIR}${file}`);
-          const clip = animationModel.animations[0];
-          if (!clip || !this.mixer) {
-            throw new Error(`No animation clip found in ${file}`);
+      try {
+        let tex: THREE.Texture | undefined;
+        if (set.texture) {
+          try {
+            tex = await new THREE.TextureLoader().loadAsync(`${set.dir}${set.texture}`);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.anisotropy = 8;
+          } catch (texErr) {
+            console.warn('[Player] Character texture failed to load', texErr);
           }
-          clip.name = name;
-          this.actions[name] = this.mixer.clipAction(clip);
-          return name;
-        }),
-      );
-
-      loaded.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          console.warn(`[Player] Optional animation failed: ${animationFiles[index][1]}`, result.reason);
         }
-      });
 
-      this.animated = !!this.actions.run;
-      console.info('[Player] Mixamo animations ready:', Object.keys(this.actions).join(', '));
-    } catch (err) {
-      console.error('[Player] Mixamo character setup failed; using legacy fallback', err);
-      this.visual.clear();
-      this.mixer = undefined;
-      this.actions = {};
-      this.animated = false;
-      await this.loadFallback();
+        this.setupFbx(main, tex);
+        this.mixer = new THREE.AnimationMixer(main);
+
+        // The main Running.fbx contains both the skinned character and its run clip.
+        if (main.animations[0]) {
+          main.animations[0].name = 'run';
+          this.actions.run = this.mixer.clipAction(main.animations[0]);
+        }
+
+        // Each remaining file is animation-only and must share the same Mixamo rig.
+        const loaded = await Promise.allSettled(
+          set.clips.map(async ([name, file]) => {
+            const animationModel = await fbx.loadAsync(`${set.dir}${file}`);
+            const clip = animationModel.animations[0];
+            if (!clip || !this.mixer) {
+              throw new Error(`No animation clip found in ${file}`);
+            }
+            clip.name = name;
+            this.actions[name] = this.mixer.clipAction(clip);
+            return name;
+          }),
+        );
+
+        loaded.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.warn(`[Player] Optional animation failed: ${set.clips[index][1]}`, result.reason);
+          }
+        });
+
+        this.animated = !!this.actions.run;
+        console.info('[Player] Animations ready:', Object.keys(this.actions).join(', '));
+        this.setMenu();
+        return;
+      } catch (err) {
+        console.error(`[Player] Setup of ${set.dir} failed; trying next set`, err);
+        this.visual.clear();
+        this.mixer = undefined;
+        this.actions = {};
+        this.animated = false;
+      }
     }
 
+    // Nothing worked: static boy.obj / capsule fallback
+    await this.loadFallback();
     this.setMenu();
   }
 
-  private setupFbx(obj: THREE.Group) {
+  private setupFbx(obj: THREE.Group, forceMap?: THREE.Texture) {
     obj.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(obj);
     const h = Math.max(0.001, box.max.y - box.min.y);
@@ -140,7 +170,8 @@ export class Player {
       mesh.frustumCulled = false;
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const m of mats as THREE.MeshPhongMaterial[]) {
-        if (!m.map) m.map = this.assets.boy;
+        if (forceMap) m.map = forceMap;
+        else if (!m.map) m.map = this.assets.boy;
         m.color?.set(0xffffff);
         m.needsUpdate = true;
       }

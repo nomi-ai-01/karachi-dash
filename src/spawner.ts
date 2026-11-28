@@ -55,6 +55,15 @@ export class Spawner {
   private matDark = new THREE.MeshLambertMaterial({ color: 0x25282c });
   private matPost = new THREE.MeshLambertMaterial({ color: 0x555b62 });
   private matLamp = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
+  private lowGeos = {
+    post: new THREE.BoxGeometry(0.25, 1.15, 0.25),
+    lamp: new THREE.SphereGeometry(0.15, 10, 8),
+    bar: new THREE.BoxGeometry(2.6, 0.55, 0.3),
+    hpost: new THREE.BoxGeometry(0.3, 3.6, 0.3),
+    beam: new THREE.BoxGeometry(2.9, 0.55, 0.35),
+    top: new THREE.BoxGeometry(2.9, 0.3, 0.3),
+  };
+  private contGeos = new Map<number, [THREE.BoxGeometry, THREE.BoxGeometry]>();
   private underGeo = new THREE.BoxGeometry(2.2, 0.5, 1);
   private bogieGeo = new THREE.BoxGeometry(2.1, 0.45, 2.6);
   private frontGeo = new THREE.PlaneGeometry(2.6, 3.0);
@@ -79,6 +88,16 @@ export class Spawner {
       new THREE.MeshBasicMaterial({ map: a.coin }),
       new THREE.MeshBasicMaterial({ map: a.coin }),
     ];
+  }
+
+  /** Build one of everything off-screen so shaders/geometry upload before the run starts. */
+  prewarm() {
+    this.addTrain(0, -30, 12, false, 0);
+    this.addTrain(3, -30, 12, true, 0);
+    this.addContainer(-3, -30, 6.6);
+    this.addLow(0, -50);
+    this.addHigh(3, -50);
+    this.addCoin(-3, 1, -50);
   }
 
   reset() {
@@ -396,10 +415,15 @@ export class Spawner {
 
   private addContainer(x: number, z: number, len: number) {
     const g = new THREE.Group();
-    const flat = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.4, len), this.matDark);
+    let cg = this.contGeos.get(len);
+    if (!cg) {
+      cg = [new THREE.BoxGeometry(2.6, 0.4, len), new THREE.BoxGeometry(2.4, 2.6, len - 0.6)];
+      this.contGeos.set(len, cg);
+    }
+    const flat = new THREE.Mesh(cg[0], this.matDark);
     flat.position.y = 0.3;
     g.add(flat);
-    const box = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.6, len - 0.6), this.matContainer);
+    const box = new THREE.Mesh(cg[1], this.matContainer);
     box.position.y = 0.5 + 1.3;
     g.add(box);
     this.place(g, x, z);
@@ -409,14 +433,14 @@ export class Spawner {
   private addLow(x: number, z: number) {
     const g = new THREE.Group();
     for (const s of [-1, 1]) {
-      const p = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.15, 0.25), this.matPost);
+      const p = new THREE.Mesh(this.lowGeos.post, this.matPost);
       p.position.set(s * 1.15, 0.58, 0);
       g.add(p);
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), this.matLamp);
+      const lamp = new THREE.Mesh(this.lowGeos.lamp, this.matLamp);
       lamp.position.set(s * 1.15, 1.25, 0);
       g.add(lamp);
     }
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.55, 0.3), this.matStripe);
+    const bar = new THREE.Mesh(this.lowGeos.bar, this.matStripe);
     bar.position.y = 0.75;
     g.add(bar);
     this.place(g, x, z);
@@ -426,14 +450,14 @@ export class Spawner {
   private addHigh(x: number, z: number) {
     const g = new THREE.Group();
     for (const s of [-1, 1]) {
-      const p = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.6, 0.3), this.matPost);
+      const p = new THREE.Mesh(this.lowGeos.hpost, this.matPost);
       p.position.set(s * 1.3, 1.8, 0);
       g.add(p);
     }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.55, 0.35), this.matStripe);
+    const beam = new THREE.Mesh(this.lowGeos.beam, this.matStripe);
     beam.position.y = 1.5;
     g.add(beam);
-    const top = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.3, 0.3), this.matPost);
+    const top = new THREE.Mesh(this.lowGeos.top, this.matPost);
     top.position.y = 3.5;
     g.add(top);
     this.place(g, x, z);
@@ -441,9 +465,6 @@ export class Spawner {
   }
 
   private place(g: THREE.Object3D, x: number, z: number) {
-    g.traverse((o) => {
-      if ((o as THREE.Mesh).isMesh) o.castShadow = true;
-    });
     g.position.set(x, 0, z);
     this.scene.add(g);
   }

@@ -4,8 +4,8 @@ export const C = {
   OUTER_X: 8, // x of the decorative outer tracks
 
   SEG_LEN: 24,
-  SEG_COUNT: 9,
-  SPAWN_DIST: 125,
+  SEG_COUNT: 7,
+  SPAWN_DIST: 110,
 
   BASE_SPEED: 20,
   MAX_SPEED: 42,

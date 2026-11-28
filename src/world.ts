@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { C } from './config';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Assets } from './assets';
 
 /** Endless scrolling Karachi: railway tracks, buildings, palms, wires, gantry sign, landmarks. */
@@ -35,6 +36,7 @@ export class World {
   private archMat = new THREE.MeshLambertMaterial({ color: 0x4a4a52 });
 
   private bModel?: THREE.Group;
+  private palmCrown!: THREE.BufferGeometry;
 
   constructor(a: Assets) {
     this.bModel = a.buildingModel;
@@ -59,6 +61,17 @@ export class World {
     shape.quadraticCurveTo(0.55, 1.7, 0, 3.5);
     shape.quadraticCurveTo(-0.55, 1.7, 0, 0);
     this.leafGeo = new THREE.ShapeGeometry(shape);
+    // merge the 10 palm leaves into ONE geometry (1 draw call instead of 10 per palm)
+    const tr = new THREE.Object3D();
+    tr.rotation.order = 'YXZ';
+    const parts: THREE.BufferGeometry[] = [];
+    for (let k = 0; k < 10; k++) {
+      tr.position.set(0, 6.9, 0);
+      tr.rotation.set(-(k % 2 === 0 ? 0.95 : 1.75), (k / 10) * Math.PI * 2, 0);
+      tr.updateMatrix();
+      parts.push(this.leafGeo.clone().applyMatrix4(tr.matrix));
+    }
+    this.palmCrown = mergeGeometries(parts)!;
 
     const L = C.SEG_LEN / 2;
     const pts: number[] = [];
@@ -135,9 +148,6 @@ export class World {
         b.scale.set(0.55, 0.85 + Math.random() * 0.35, L / 42);
         b.position.set(s * 18.6, 0, 0);
         b.rotation.y = Math.random() < 0.5 ? 0 : Math.PI;
-        b.traverse((o) => {
-          if ((o as THREE.Mesh).isMesh) o.castShadow = true;
-        });
         g.add(b);
         continue;
       }
@@ -190,16 +200,7 @@ export class World {
     const trunk = new THREE.Mesh(this.trunkGeo, this.trunkMat);
     trunk.position.y = 3.5;
     palm.add(trunk);
-    const crown = new THREE.Group();
-    crown.position.y = 6.9;
-    for (let k = 0; k < 10; k++) {
-      const leaf = new THREE.Mesh(this.leafGeo, this.leafMats[k % 2]);
-      leaf.rotation.order = 'YXZ';
-      leaf.rotation.y = (k / 10) * Math.PI * 2;
-      leaf.rotation.x = -(k % 2 === 0 ? 0.95 : 1.75);
-      crown.add(leaf);
-    }
-    palm.add(crown);
+    palm.add(new THREE.Mesh(this.palmCrown, this.leafMats[0]));
     return palm;
   }
 

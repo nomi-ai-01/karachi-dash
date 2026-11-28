@@ -19,6 +19,13 @@ export class Game {
   private spawner: Spawner;
   private player: Player;
   private clock = new THREE.Clock();
+  private pr = 1;
+  private slowT = 0;
+  private slowN = 0;
+  private buf: 'jump' | 'slide' | null = null;
+  private bufT = 0;
+  private tmpPos = new THREE.Vector3();
+  private tmpLook = new THREE.Vector3();
 
   private state: State = 'menu';
   private paused = false;
@@ -35,11 +42,11 @@ export class Game {
   private camLook = new THREE.Vector3(0, 1.0, 0);
 
   constructor(private host: HTMLElement, assets: Assets) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    this.pr = Math.min(window.devicePixelRatio || 1, 1.5);
+    this.renderer.setPixelRatio(this.pr);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled = false; // real-time shadows were the biggest slowdown; the player keeps a blob shadow
     host.appendChild(this.renderer.domElement);
 
     // sharper textures at grazing angles (tracks, ground, buildings)
@@ -48,24 +55,14 @@ export class Game {
 
     const sky = new THREE.Color(0xd6ebff);
     this.scene.background = this.makeSky();
-    this.scene.fog = new THREE.Fog(sky, 45, 150);
+    this.scene.fog = new THREE.Fog(sky, 40, 118);
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0xa59270, 1.3));
     const sun = new THREE.DirectionalLight(0xfff0d0, 2.2);
     sun.position.set(-10, 18, -17);
     sun.target.position.set(0, 0, -25);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = -26;
-    sun.shadow.camera.right = 26;
-    sun.shadow.camera.top = 48;
-    sun.shadow.camera.bottom = -48;
-    sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 120;
-    sun.shadow.bias = -0.0004;
-    sun.shadow.normalBias = 0.03;
     this.scene.add(sun, sun.target);
 
-    this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 400);
+    this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 140);
     this.world = new World(assets);
     this.scene.add(this.world.root);
     this.spawner = new Spawner(this.scene, assets);
@@ -84,6 +81,10 @@ export class Game {
 
   async init() {
     await this.player.load();
+    // build every material once now, so the first train/barrier doesn't freeze the game mid-run
+    this.spawner.prewarm();
+    this.renderer.compile(this.scene, this.camera);
+    this.spawner.reset();
     this.refreshMenu();
   }
 
@@ -91,7 +92,9 @@ export class Game {
     this.clock.start();
     const loop = () => {
       requestAnimationFrame(loop);
-      const dt = Math.min(0.05, this.clock.getDelta());
+      const raw = this.clock.getDelta();
+      const dt = Math.min(0.05, raw);
+      this.adapt(raw);
       this.update(dt);
       this.renderer.render(this.scene, this.camera);
     };
@@ -114,6 +117,20 @@ export class Game {
     const t = new THREE.CanvasTexture(cv);
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
+  }
+
+  /** If the phone is struggling, lower the render resolution automatically. */
+  private adapt(raw: number) {
+    if (this.state !== 'run' || this.pr <= 0.75) return;
+    this.slowT += raw;
+    if (++this.slowN < 90) return;
+    if (this.slowT / this.slowN > 0.026) {
+      this.pr = Math.max(0.75, this.pr - 0.25);
+      this.renderer.setPixelRatio(this.pr);
+      this.resize();
+    }
+    this.slowT = 0;
+    this.slowN = 0;
   }
 
   private resize() {
@@ -211,6 +228,10 @@ export class Game {
   private act(a: 'left' | 'right' | 'jump' | 'slide') {
     if (this.state !== 'run' || this.paused) return;
     let ok = false;
+    if ((a === 'jump' || a === 'slide') && !(a === 'jump' ? this.player.canJump() : this.player.canSlide())) {
+      this.buf = a; // remember the swipe for a moment (Subway Surfers style input buffer)
+      this.bufT = 0.18;
+    }
     if (a === 'left') ok = this.player.moveLeft();
     else if (a === 'right') ok = this.player.moveRight();
     else if (a === 'jump') {
@@ -244,6 +265,7 @@ export class Game {
     this.shake = 0;
     this.deadT = 0;
     this.paused = false;
+    this.buf = null;
     this.player.setMenu();
     this.player.startRun();
     this.state = 'run';
@@ -301,6 +323,15 @@ export class Game {
       this.world.update(dz);
       this.spawner.update(dz, dt, this.dist, this.speed);
       this.player.update(dt, this.speed);
+      if (this.buf) {
+        this.bufT -= dt;
+        if (this.bufT <= 0) this.buf = null;
+        else if (this.buf === 'jump' ? this.player.canJump() : this.player.canSlide()) {
+          const b = this.buf;
+          this.buf = null;
+          this.act(b);
+        }
+      }
 
       const h = this.player.hitHeight;
       const got = this.spawner.collect(this.player.x, this.player.y, h);
@@ -345,15 +376,15 @@ export class Game {
 
   private updateCamera(dt: number) {
     const px = this.player.x;
-    let pos: THREE.Vector3;
-    let look: THREE.Vector3;
+    const pos = this.tmpPos;
+    const look = this.tmpLook;
     if (this.state === 'menu') {
-      pos = new THREE.Vector3(1.1, 1.5, 4.0);
-      look = new THREE.Vector3(0, 1.0, 0);
+      pos.set(1.1, 1.5, 4.0);
+      look.set(0, 1.0, 0);
     } else {
       // Subway-Surfer style chase camera: higher and further back
-      pos = new THREE.Vector3(px * 0.5, 3.5, 6.4);
-      look = new THREE.Vector3(px * 0.35, 1.2, -12);
+      pos.set(px * 0.5, 3.5, 6.4);
+      look.set(px * 0.35, 1.2, -12);
     }
     const k = 1 - Math.exp(-dt * (this.state === 'menu' ? 4 : 7));
     this.camPos.lerp(pos, k);

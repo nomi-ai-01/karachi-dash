@@ -174,6 +174,13 @@ export class Player {
         if (!this.actions.run) throw new Error('run animation missing');
 
         this.animated = !!this.actions.run;
+        // bind every clip once now, otherwise the first jump/slide hitches while three.js sets it up
+        for (const a of Object.values(this.actions)) {
+          a!.play();
+          a!.setEffectiveWeight(0.0001);
+        }
+        this.mixer.update(0);
+        this.mixer.stopAllAction();
         console.info('[Player] Animations ready:', Object.keys(this.actions).join(', '));
         this.setMenu();
         return;
@@ -234,7 +241,6 @@ export class Player {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.frustumCulled = false;
-      mesh.castShadow = true;
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const m of mats as THREE.MeshPhongMaterial[]) {
         if (forceMap) {
@@ -284,6 +290,13 @@ export class Player {
     if (n === this.lane) return false;
     this.lane = n;
     return true;
+  }
+
+  canJump() {
+    return this.alive && this.running && this.y <= 0.001;
+  }
+  canSlide() {
+    return this.alive && this.running && this.y <= 0.001 && this.slideT <= 0;
   }
 
   jump() {

@@ -118,6 +118,34 @@
       <div class="loadtrack"><div id="loadbar"></div></div>
     </div>
 
+    <script>
+      (function () {
+        function show(m) {
+          var l = document.getElementById('loading');
+          if (!l || l.classList.contains('hidden')) return;
+          var p = document.getElementById('loadmsg');
+          if (!p) {
+            p = document.createElement('p');
+            p.id = 'loadmsg';
+            p.style.cssText = 'max-width:86vw;margin:0;padding:0 16px;color:#fff;font:15px sans-serif;text-align:center';
+            l.appendChild(p);
+          }
+          p.textContent = m;
+        }
+        window.addEventListener('error', function (e) {
+          var t = e.target;
+          if (t && (t.src || t.href)) show('File load nahi hui: ' + (t.src || t.href) + ' - Ctrl+Shift+R dabayein.');
+          else show('Error: ' + e.message);
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) { show('Error: ' + e.reason); });
+        setTimeout(function () {
+          var b = document.getElementById('loadbar');
+          if (b && (!b.style.width || b.style.width === '0%')) {
+            show('Game load nahi ho raha. Ctrl+Shift+R dabayein. Phir bhi na ho to F12 dabayein aur Console ka error bhej dein.');
+          }
+        }, 10000);
+      })();
+    </script>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

@@ -99,7 +99,16 @@ export async function loadAssets(onProgress: (p: number) => void): Promise<Asset
   const loaded: Record<string, THREE.Texture> = {};
   await Promise.all(
     keys.map(async (k) => {
-      const t = await loader.loadAsync(FILES[k]);
+      let t: THREE.Texture;
+      try {
+        t = await loader.loadAsync(FILES[k]);
+      } catch (err) {
+        console.warn('[Assets] texture failed, using placeholder:', FILES[k], err);
+        t = canvasTex(8, 8, (c) => {
+          c.fillStyle = '#8a8a8a';
+          c.fillRect(0, 0, 8, 8);
+        });
+      }
       t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = 8;
       loaded[k] = t;

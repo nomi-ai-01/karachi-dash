@@ -1,6 +1,7 @@
 export interface SaveData {
   best: number;
   coins: number;
+  char?: string;
 }
 const KEY = 'karachi-dash-3d-save';
 
@@ -9,7 +10,7 @@ export function loadSave(): SaveData {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      return { best: Number(d.best) || 0, coins: Number(d.coins) || 0 };
+      return { best: Number(d.best) || 0, coins: Number(d.coins) || 0, char: typeof d.char === 'string' ? d.char : undefined };
     }
   } catch {
     /* ignore */

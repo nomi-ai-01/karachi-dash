@@ -4,11 +4,14 @@ import type { Assets, Kit } from './assets';
 import { PASS_STYLES, LOCOS, CARS } from './assets';
 
 export type ObstacleKind = 'train' | 'container' | 'low' | 'high';
+export type TrainStyle = 'passenger' | 'freight' | 'poly' | 'hs';
+const STYLES: TrainStyle[] = ['passenger', 'freight', 'passenger', 'freight', 'poly', 'hs'];
 
 export interface Obstacle {
   kind: ObstacleKind;
   x: number;
   z: number; // centre
+  pz: number; // centre one frame ago (swept collision: no tunnelling at low fps)
   len: number;
   hw: number; // half width for collision
   vz: number; // extra speed towards the player (moving trains)
@@ -75,6 +78,7 @@ export class Spawner {
   private baseCar?: THREE.Group;
   private kit?: Kit;
   private zl = new Map<string, number>();
+  private xl = new Map<string, number>();
 
   constructor(private scene: THREE.Scene, a: Assets) {
     this.baseCar = a.trainModel;
@@ -96,8 +100,10 @@ export class Spawner {
 
   /** Build one of everything off-screen so shaders/geometry upload before the run starts. */
   prewarm() {
-    this.addTrain(0, -30, 12, false, 0);
-    this.addTrain(3, -30, 12, true, 0);
+    this.addTrain(0, -30, 12, 'passenger', 0);
+    this.addTrain(3, -30, 12, 'freight', 0);
+    this.addTrain(6, -30, 19.2, 'hs', 0);
+    this.addTrain(9, -30, 14.4, 'poly', 0);
     this.addContainer(-3, -30, 6.6);
     this.addLow(0, -50);
     this.addHigh(3, -50);
@@ -121,6 +127,7 @@ export class Spawner {
 
     for (let i = this.obstacles.length - 1; i >= 0; i--) {
       const o = this.obstacles[i];
+      o.pz = o.z;
       o.z += dz + o.vz * dt;
       o.obj.position.z = o.z;
       if (o.vz > 0 && !o.horned && o.z - o.len / 2 > -70) {
@@ -145,15 +152,16 @@ export class Spawner {
     }
   }
 
-  /** First obstacle that overlaps the player's box (or null) */
+  /** First obstacle that overlaps the player's box (or null). The obstacle's whole path since last frame is tested. */
   collides(px: number, py: number, h: number): Obstacle | null {
     const pHW = C.PLAYER_HW;
     const pHD = C.PLAYER_HD;
     for (const o of this.obstacles) {
-      if (Math.abs(o.z) > o.len / 2 + 1) continue;
       if (Math.abs(px - o.x) >= pHW + o.hw) continue;
       if (py + h <= o.y0 || py >= o.y1) continue;
-      if (o.z + o.len / 2 <= -pHD || o.z - o.len / 2 >= pHD) continue;
+      const near = Math.max(o.z, o.pz) + o.len / 2;
+      const far = Math.min(o.z, o.pz) - o.len / 2;
+      if (near <= -pHD || far >= pHD) continue;
       return o;
     }
     return null;
@@ -216,21 +224,22 @@ export class Spawner {
       const free = cand[Math.floor(Math.random() * cand.length)];
       let blocked = [0, 1, 2].filter((l) => l !== free);
       if (n === 1) blocked = [blocked[Math.floor(Math.random() * 2)]];
-      const lens = [12, 16, 20];
       rowLen = 0;
       for (const l of blocked) {
-        const len = isContainer ? 6.6 : lens[Math.floor(Math.random() * lens.length)];
+        const style = STYLES[Math.floor(Math.random() * STYLES.length)];
+        const len = isContainer ? 6.6 : this.lenFor(style, false);
         rowLen = Math.max(rowLen, len);
         const lx = C.LANES[l];
         if (isContainer) this.addContainer(lx, z0 - len / 2, len);
         else {
           // moving trains rush towards the player, only in lanes with nothing ahead
+          // (a lot of trains just stand still, only some rush at the player)
           const vz = 11 + Math.random() * 5 + diff * 6;
-          const moving = dist > 50 && this.canRush(lx, vz, speed) && Math.random() < Math.min(0.7, 0.4 + diff * 0.3);
+          const moving = dist > 50 && this.canRush(lx, vz, speed) && Math.random() < Math.min(0.5, 0.25 + diff * 0.25);
           if (moving) {
-            const mlen = [10, 12, 14][Math.floor(Math.random() * 3)];
-            this.addTrain(lx, z0 - mlen / 2, mlen, Math.random() < 0.5, vz);
-          } else this.addTrain(lx, z0 - len / 2, len, Math.random() < 0.5, 0);
+            const mlen = this.lenFor(style, true);
+            this.addTrain(lx, z0 - mlen / 2, mlen, style, vz);
+          } else this.addTrain(lx, z0 - len / 2, len, style, 0);
         }
       }
       const freeLanes = [0, 1, 2].filter((l) => !blocked.includes(l));
@@ -341,42 +350,92 @@ export class Spawner {
     return v;
   }
 
-  private zLen(name: string) {
+  private dims(name: string) {
     let v = this.zl.get(name);
     if (v === undefined) {
-      const b = new THREE.Box3().setFromObject(this.kit!.parts[name]);
-      v = Math.max(0.1, b.max.z - b.min.z);
+      const bb = new THREE.Box3().setFromObject(this.kit!.parts[name]);
+      v = Math.max(0.1, bb.max.z - bb.min.z);
       this.zl.set(name, v);
+      this.xl.set(name, Math.max(0.1, bb.max.x - bb.min.x));
     }
-    return v;
+    return { z: v, x: this.xl.get(name)! };
   }
 
-  /** Train built from light Kenney pieces: engine/head car at the front (+z), carriages behind. */
-  private kitTrain(len: number, passenger: boolean) {
+  private zLen(name: string) {
+    return this.dims(name).z;
+  }
+
+  private has(name: string) {
+    return !!this.kit?.parts[name];
+  }
+
+  /** train lengths that look right for each style (unit = one 4.8 m kit carriage) */
+  private lenFor(style: TrainStyle, moving: boolean) {
+    const U = 4.8;
+    const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+    if (style === 'hs' && this.has('x-hs')) return pick(moving ? [3 + 1, 3 + 2] : [3 + 1, 3 + 2, 3 + 3]) * U; // nose = 3 units
+    if (style === 'poly' && this.has('x-poly')) return pick(moving ? [3, 5] : [3, 5, 7]) * U; // loco 1 + cars of 2
+    return moving ? pick([10, 12, 14]) : pick([12, 16, 20]);
+  }
+
+  /** Train built from light pieces. Pieces are listed rear -> front (the front faces +z, towards the player). */
+  private kitTrain(len: number, style: TrainStyle) {
     const k = this.kit!;
-    const g = new THREE.Group();
-    const n = Math.max(2, Math.round(len / 4.8));
-    const slot = len / n;
-    const st = PASS_STYLES[Math.floor(Math.random() * PASS_STYLES.length)];
-    for (let i = 0; i < n; i++) {
-      const last = i === n - 1;
-      const name = passenger
-        ? `train-electric-${st}-${last ? 'a' : i === 0 ? 'c' : 'b'}`
-        : last
-          ? `train-${LOCOS[Math.floor(Math.random() * LOCOS.length)]}`
-          : `train-carriage-${CARS[Math.floor(Math.random() * CARS.length)]}`;
-      const src = k.parts[name];
-      if (!src) continue;
-      const c = src.clone(true);
-      c.scale.z = slot / this.zLen(name);
-      c.position.set(0, 0.3, -len / 2 + (i + 0.5) * slot);
-      g.add(c);
+    const U = 4.8;
+    const pieces: { name: string; w: number }[] = [];
+    const rnd = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+    const ok = (names: string[]) => names.filter((n) => k.parts[n]);
+
+    if (style === 'hs' && this.has('x-hs')) {
+      const n = Math.max(1, Math.round(len / U - 3));
+      const cars = ok(['train-electric-bullet-b', 'train-electric-bullet-c']);
+      for (let i = 0; i < n; i++) pieces.push({ name: rnd(cars) ?? 'x-hs', w: 1 });
+      pieces.push({ name: 'x-hs', w: 3 });
+    } else if (style === 'poly' && this.has('x-poly')) {
+      const n = Math.max(1, Math.round((len / U - 1) / 2));
+      for (let i = 0; i < n; i++) pieces.push({ name: 'x-poly', w: 2 });
+      pieces.push({ name: rnd(ok(['train-locomotive-passenger-a', 'train-locomotive-passenger-b', 'train-diesel-box-a'])) ?? 'x-poly', w: 1 });
+    } else {
+      const n = Math.max(2, Math.round(len / U));
+      const passenger = style === 'passenger' || style === 'hs' || style === 'poly';
+      const st = rnd(PASS_STYLES.filter((x) => k.parts[`train-electric-${x}-a`]));
+      for (let i = 0; i < n; i++) {
+        const last = i === n - 1;
+        const name = passenger
+          ? `train-electric-${st}-${last ? 'a' : i === 0 ? 'c' : 'b'}`
+          : last
+            ? `train-${rnd(ok(LOCOS.map((x) => `train-${x}`)).map((x) => x.slice(6)))}`
+            : `train-carriage-${rnd(ok(CARS.map((x) => `train-carriage-${x}`)).map((x) => x.slice(15)))}`;
+        pieces.push({ name, w: 1 });
+      }
     }
+
+    const W = pieces.reduce((a, p) => a + p.w, 0);
+    const unit = len / W;
+    const g = new THREE.Group();
+    let z = -len / 2;
+    let hw = 0;
+    for (const p of pieces) {
+      const src = k.parts[p.name];
+      if (!src) {
+        z += p.w * unit;
+        continue;
+      }
+      const d = this.dims(p.name);
+      const c = src.clone(true);
+      c.scale.z = (p.w * unit) / d.z;
+      c.position.set(0, 0.3, z + (p.w * unit) / 2);
+      g.add(c);
+      z += p.w * unit;
+      hw = Math.max(hw, d.x / 2);
+    }
+    g.userData.hw = THREE.MathUtils.clamp(hw, 1.0, 1.35);
     return g;
   }
 
-  private makeTrainObj(len: number, red: boolean) {
-    if (this.kit) return this.kitTrain(len, red);
+  private makeTrainObj(len: number, style: TrainStyle) {
+    const red = style === 'passenger' || style === 'hs';
+    if (this.kit) return this.kitTrain(len, style);
     const car = this.carOf(red);
     if (car) {
       const CAR_LEN = 13.96;
@@ -419,10 +478,12 @@ export class Spawner {
     return g;
   }
 
-  private addTrain(x: number, z: number, len: number, red: boolean, vz: number) {
-    const g = this.makeTrainObj(len, red);
+  private addTrain(x: number, z: number, len: number, style: TrainStyle, vz: number) {
+    const g = this.makeTrainObj(len, style);
     this.place(g, x, z);
-    this.obstacles.push({ kind: 'train', x, z, len, hw: 1.15, y0: 0.4, y1: 3.6, vz, obj: g });
+    // hit-box width follows the model that is really drawn
+    const hw = (g.userData.hw as number | undefined) ?? 1.15;
+    this.obstacles.push({ kind: 'train', x, z, pz: z, len, hw, y0: 0.4, y1: 3.6, vz, obj: g });
   }
 
   /** Decorative trains on the two outer tracks: parked/slow ones and fast oncoming ones */
@@ -444,7 +505,7 @@ export class Spawner {
       if (this.ambient.some((m) => m.side === side)) continue;
       const oncoming = Math.random() < 0.45;
       const len = oncoming ? [12, 24][Math.floor(Math.random() * 2)] : [12, 24, 36][Math.floor(Math.random() * 3)];
-      const g = this.makeTrainObj(len, Math.random() < 0.5);
+      const g = this.makeTrainObj(len, STYLES[Math.floor(Math.random() * STYLES.length)]);
       const z = -C.SPAWN_DIST - len / 2;
       this.place(g, side * C.OUTER_X, z);
       this.ambient.push({ obj: g, z, len, vz: oncoming ? 22 + Math.random() * 8 : 0, side });
@@ -466,7 +527,7 @@ export class Spawner {
     box.position.y = 0.5 + 1.3;
     g.add(box);
     this.place(g, x, z);
-    this.obstacles.push({ kind: 'container', x, z, len, hw: 1.1, y0: 0.1, y1: 3.2, vz: 0, obj: g });
+    this.obstacles.push({ kind: 'container', x, z, pz: z, len, hw: 1.1, y0: 0.1, y1: 3.2, vz: 0, obj: g });
   }
 
   private addLow(x: number, z: number) {
@@ -483,7 +544,7 @@ export class Spawner {
     bar.position.y = 0.75;
     g.add(bar);
     this.place(g, x, z);
-    this.obstacles.push({ kind: 'low', x, z, len: 0.6, hw: 1.3, y0: 0, y1: 1.05, vz: 0, obj: g });
+    this.obstacles.push({ kind: 'low', x, z, pz: z, len: 0.6, hw: 1.3, y0: 0, y1: 1.05, vz: 0, obj: g });
   }
 
   private addHigh(x: number, z: number) {
@@ -500,7 +561,7 @@ export class Spawner {
     top.position.y = 3.5;
     g.add(top);
     this.place(g, x, z);
-    this.obstacles.push({ kind: 'high', x, z, len: 0.6, hw: 1.3, y0: 1.15, y1: 3.7, vz: 0, obj: g });
+    this.obstacles.push({ kind: 'high', x, z, pz: z, len: 0.6, hw: 1.3, y0: 1.15, y1: 3.7, vz: 0, obj: g });
   }
 
   private place(g: THREE.Object3D, x: number, z: number) {

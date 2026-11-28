@@ -3,7 +3,7 @@ import { C } from './config';
 import type { Assets } from './assets';
 import { World } from './world';
 import { Spawner } from './spawner';
-import { Player } from './player';
+import { Player, CHARACTERS } from './player';
 import { audio } from './audio';
 import { loadSave, writeSave } from './save';
 
@@ -82,7 +82,8 @@ export class Game {
   }
 
   async init() {
-    await this.player.load();
+    await this.player.load(this.save.char);
+    this.showCharName();
     // build every material once now, so the first train/barrier doesn't freeze the game mid-run
     this.spawner.prewarm();
     this.renderer.compile(this.scene, this.camera);
@@ -206,6 +207,7 @@ export class Game {
 
   private bindUi() {
     $('playBtn').onclick = () => {
+      if (this.picking) return; // character still loading
       audio.unlock();
       this.startGame();
     };
@@ -217,6 +219,23 @@ export class Game {
       this.setPaused(false);
       this.toMenu();
     };
+    const pick = async (d: number) => {
+      if (this.state !== 'menu' || this.picking) return;
+      this.picking = true;
+      const i = CHARACTERS.findIndex((c) => c.id === this.player.charId);
+      const next = CHARACTERS[(i + d + CHARACTERS.length) % CHARACTERS.length];
+      $('charName').textContent = 'Loading...';
+      try {
+        await this.player.select(next.id);
+        this.save.char = this.player.charId;
+        writeSave(this.save);
+      } finally {
+        this.picking = false;
+        this.showCharName();
+      }
+    };
+    $('charPrev').onclick = () => pick(-1);
+    $('charNext').onclick = () => pick(1);
     const mute = $('muteBtn');
     mute.onclick = () => {
       audio.unlock();
@@ -250,6 +269,11 @@ export class Game {
 
   private show(id: string, on: boolean) {
     $(id).classList.toggle('hidden', !on);
+  }
+
+  private picking = false;
+  private showCharName() {
+    $('charName').textContent = CHARACTERS.find((c) => c.id === this.player.charId)?.name ?? '';
   }
 
   private refreshMenu() {
@@ -346,14 +370,17 @@ export class Game {
       this.score = Math.floor(this.dist) + this.coinsRun * 10;
       this.invuln = Math.max(0, this.invuln - dt);
       this.stumbleT = Math.max(0, this.stumbleT - dt);
-      if (this.invuln <= 0 && this.spawner.collides(this.player.x, this.player.y, h)) {
-        // Subway Surfers rule: clipping the SIDE of something while changing lane = stumble (go back, keep running);
-        // a second hit within 5 s, or hitting something head-on, ends the run.
-        const side = this.player.laneOffset() > 0.45 && this.player.prevLane !== this.player.lane;
+      const hit = this.invuln <= 0 ? this.spawner.collides(this.player.x, this.player.y, h) : null;
+      if (hit) {
+        // Subway Surfers rule: scraping the SIDE of something while changing lane = stumble (go back, keep running).
+        // Running into the FRONT of a train / barrier, or a second hit within 5 s, ends the run.
+        const front = hit.pz + hit.len / 2; // end of the obstacle that faces the player (one frame ago)
+        const alongside = front > C.PLAYER_HD + 0.6; // its front had already passed the player: a side scrape
+        const side = alongside && this.player.laneOffset() > 0.45 && this.player.prevLane !== this.player.lane;
         if (side && this.stumbleT <= 0) {
           this.player.bounce();
           this.stumbleT = 5;
-          this.invuln = 0.9;
+          this.invuln = 0.4;
           this.shake = 0.3;
           audio.swish();
         } else this.crash();

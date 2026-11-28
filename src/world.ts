@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { C } from './config';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { Assets } from './assets';
+import type { Assets, BuildingTpl, Prepped } from './assets';
 
 /** Endless scrolling Karachi: railway tracks, buildings, palms, wires, gantry sign, landmarks. */
 export class World {
@@ -53,12 +53,16 @@ export class World {
     ['SIALKOT', 'سیالکوٹ'],
   ];
   private bModel?: THREE.Group;
-  private houses: THREE.Object3D[] = [];
+  private tpls: BuildingTpl[] = [];
+  private bag: BuildingTpl[] = [];
+  private lastTpl?: BuildingTpl;
   private palmCrown!: THREE.BufferGeometry;
+  private trees: Prepped[] = [];
 
   constructor(a: Assets) {
     this.bModel = a.buildingModel;
-    this.houses = a.kit?.houses ?? [];
+    this.tpls = a.buildings ?? [];
+    this.trees = a.trees ?? [];
     a.gravel.wrapS = a.gravel.wrapT = THREE.RepeatWrapping;
     a.gravel.repeat.set(16, 12);
     a.building.wrapS = a.building.wrapT = THREE.MirroredRepeatWrapping;
@@ -164,53 +168,11 @@ export class World {
       }
     }
 
-    // buildings on both sides (painted facade faces the tracks)
-    for (const s of [-1, 1]) {
-      if (this.houses.length) {
-        // two light houses per side per segment; the door side faces the tracks
-        for (const zz of [-6, 6]) {
-          const b = this.houses[Math.floor(Math.random() * this.houses.length)].clone(true);
-          const sc = 8.2 + Math.random();
-          b.scale.set(sc, sc * (1.15 + Math.random() * 0.9), sc);
-          b.position.set(s * 11, 0, zz);
-          b.rotation.y = s < 0 ? Math.PI / 2 : -Math.PI / 2;
-          g.add(b);
-        }
-        continue;
-      }
-      if (this.bModel) {
-        const b = this.bModel.clone();
-        // model is 24 wide x 14 high x 42 long: squeeze it to one track segment
-        b.scale.set(0.55, 0.85 + Math.random() * 0.35, L / 42);
-        b.position.set(s * 16.2, 0, 0);
-        b.rotation.y = Math.random() < 0.5 ? 0 : Math.PI;
-        g.add(b);
-        continue;
-      }
-      const H = 12 + Math.random() * 6;
-      const geo = new THREE.BoxGeometry(8, H, L);
-      const face = s > 0 ? 1 : 0; // inner face: -x for right side, +x for left side
-      const uv = geo.attributes.uv as THREE.BufferAttribute;
-      const off = Math.random();
-      for (let v = face * 4; v < face * 4 + 4; v++) {
-        uv.setXY(v, uv.getX(v) + off, uv.getY(v) * (H / 12));
-      }
-      const mats = [0, 1, 2, 3, 4, 5].map((k) => (k === face ? this.facadeMat : this.plainWall));
-      const b = new THREE.Mesh(geo, mats);
-      b.position.set(s * 10.5, H / 2, 0);
-      g.add(b);
-    }
-
-    // palms
-    for (const s of [-1, 1]) {
-      for (const z of [-6, 6]) {
-        if (Math.random() < 0.25) continue;
-        const p = this.makePalm();
-        p.position.set(s * 6, 0, z + (Math.random() - 0.5) * 3);
-        p.rotation.y = Math.random() * Math.PI * 2;
-        g.add(p);
-      }
-    }
+    // buildings + palms: refilled with new random picks every time the segment wraps around
+    const dyn = new THREE.Group();
+    g.add(dyn);
+    g.userData.dyn = dyn;
+    this.fillDyn(dyn);
 
     // electric poles + overhead wires
     for (const s of [-1, 1]) {
@@ -229,6 +191,81 @@ export class World {
     if (i === 2) this.addMazar(g);
     if (i === 6) this.addMosque(g);
     return g;
+  }
+
+  /** Next building from a shuffled bag: every model shows up before any model repeats. */
+  private nextBuilding(): BuildingTpl {
+    if (!this.bag.length) {
+      this.bag = [...this.tpls];
+      for (let i = this.bag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]];
+      }
+      if (this.bag.length > 1 && this.bag[this.bag.length - 1] === this.lastTpl) {
+        [this.bag[0], this.bag[this.bag.length - 1]] = [this.bag[this.bag.length - 1], this.bag[0]];
+      }
+    }
+    this.lastTpl = this.bag.pop()!;
+    return this.lastTpl;
+  }
+
+  private fillDyn(dyn: THREE.Group) {
+    const L = C.SEG_LEN;
+    dyn.clear(); // models/geometry are shared, nothing to dispose
+    for (const s of [-1, 1]) {
+      if (this.tpls.length) {
+        // two slots (12 m each) per side; the facade (+z side of every model) turns towards the tracks
+        for (const zz of [-6, 6]) {
+          if (Math.random() < 0.08) continue; // an occasional gap
+          const t = this.nextBuilding();
+          let sc = (10.5 + Math.random() * 1.5) / t.w; // width along the track
+          sc = Math.min(sc, 9 / t.d); // not too deep
+          const hMax = t.kind === 'house' ? 12 : 24;
+          sc = Math.min(sc, hMax / t.h);
+          const stretch = t.kind === 'house' ? 1.0 + Math.random() * 0.5 : 1.0 + Math.random() * 0.12;
+          const b = t.obj.clone(true);
+          b.scale.set(sc, sc * stretch, sc);
+          b.rotation.y = s < 0 ? Math.PI / 2 : -Math.PI / 2;
+          b.position.set(s * (8.6 + (t.d * sc) / 2 + Math.random() * 0.8), 0, zz + (Math.random() - 0.5) * 1.2);
+          dyn.add(b);
+        }
+        continue;
+      }
+      if (this.bModel) {
+        const b = this.bModel.clone();
+        b.scale.set(0.55, 0.85 + Math.random() * 0.35, L / 42);
+        b.position.set(s * 16.2, 0, 0);
+        b.rotation.y = Math.random() < 0.5 ? 0 : Math.PI;
+        dyn.add(b);
+        continue;
+      }
+      const H = 12 + Math.random() * 6;
+      const geo = new THREE.BoxGeometry(8, H, L);
+      const face = s > 0 ? 1 : 0;
+      const uv = geo.attributes.uv as THREE.BufferAttribute;
+      const off = Math.random();
+      for (let v = face * 4; v < face * 4 + 4; v++) {
+        uv.setXY(v, uv.getX(v) + off, uv.getY(v) * (H / 12));
+      }
+      const mats = [0, 1, 2, 3, 4, 5].map((k) => (k === face ? this.facadeMat : this.plainWall));
+      const b = new THREE.Mesh(geo, mats);
+      b.position.set(s * 10.5, H / 2, 0);
+      dyn.add(b);
+    }
+
+    // palms
+    for (const s of [-1, 1]) {
+      for (const z of [-6, 6]) {
+        if (Math.random() < 0.25) continue;
+        // some slots get a real tree model instead of a palm
+        const tpl = this.trees.length && Math.random() < 0.5 ? this.trees[Math.floor(Math.random() * this.trees.length)] : undefined;
+        const p = tpl ? tpl.obj.clone(true) : this.makePalm();
+        if (tpl) p.scale.setScalar(0.85 + Math.random() * 0.35);
+        p.position.set(s * 6.3, 0, z + (Math.random() - 0.5) * 3);
+        p.rotation.y = Math.random() * Math.PI * 2;
+        dyn.add(p);
+      }
+    }
   }
 
   private makePalm() {
@@ -305,6 +342,10 @@ export class World {
   }
 
   private onWrap(seg: THREE.Group) {
+    const dyn = seg.userData.dyn as THREE.Group | undefined;
+    if (dyn && this.tpls.length) this.fillDyn(dyn); // brand new buildings every lap
+    const lm = seg.userData.landmark as THREE.Object3D | undefined;
+    if (lm) lm.visible = Math.random() < 0.2; // Mazar / mosque only now and then, not every lap
     const gg = seg.userData.gantry as THREE.Group | undefined;
     if (!gg) return;
     gg.visible = false;
@@ -354,6 +395,7 @@ export class World {
     m.position.set(30, 0, 0);
     m.rotation.y = Math.PI / 2 + 0.25;
     g.add(m);
+    g.userData.landmark = m;
   }
 
   /** Mosque with minaret (left side skyline) */
@@ -375,5 +417,6 @@ export class World {
     }
     m.position.set(-30, 0, 0);
     g.add(m);
+    g.userData.landmark = m;
   }
 }

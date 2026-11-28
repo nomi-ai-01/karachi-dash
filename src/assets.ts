@@ -1,13 +1,64 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+
+/** A model re-centred so its origin is the middle of its footprint and its feet sit on y = 0. */
+export interface Prepped {
+  obj: THREE.Group;
+  w: number; // size along x
+  h: number; // size along y
+  d: number; // size along z
+}
+export interface BuildingTpl extends Prepped {
+  kind: 'house' | 'city';
+}
+
+export function prep(scene: THREE.Object3D, scale = 1, yaw = 0): Prepped {
+  const inner = new THREE.Group();
+  inner.add(scene);
+  inner.scale.setScalar(scale);
+  inner.rotation.y = yaw;
+  const wrap = new THREE.Group();
+  wrap.add(inner);
+  wrap.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(wrap);
+  inner.position.set(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+  wrap.updateMatrixWorld(true);
+  return { obj: wrap, w: b.max.x - b.min.x, h: b.max.y - b.min.y, d: b.max.z - b.min.z };
+}
 
 export interface Kit {
   parts: Record<string, THREE.Object3D>;
   houses: THREE.Object3D[];
 }
-export const PASS_STYLES = ['city', 'subway', 'bullet'];
-export const LOCOS = ['locomotive-a', 'locomotive-b', 'locomotive-c', 'diesel-a', 'diesel-b', 'diesel-c'];
-export const CARS = ['box', 'container-red', 'container-green', 'container-blue', 'tank', 'coal', 'wood', 'lumber', 'dirt', 'flatbed-wood'];
+export const PASS_STYLES = ['city', 'subway', 'bullet', 'double'];
+export const LOCOS = [
+  'locomotive-a',
+  'locomotive-b',
+  'locomotive-c',
+  'diesel-a',
+  'diesel-b',
+  'diesel-c',
+  'diesel-box-a',
+  'diesel-box-b',
+  'diesel-box-c',
+  'locomotive-passenger-a',
+  'locomotive-passenger-b',
+];
+export const CARS = [
+  'box',
+  'container-red',
+  'container-green',
+  'container-blue',
+  'tank',
+  'tank-large',
+  'coal',
+  'wood',
+  'lumber',
+  'dirt',
+  'flatbed-wood',
+  'flatbed',
+];
 const HOUSES = 'abcdefghijklmnopqrstu'.split('').map((c) => `building-type-${c}`);
 const KIT_PARTS = [
   ...PASS_STYLES.flatMap((k) => ['a', 'b', 'c'].map((x) => `train-electric-${k}-${x}`)),
@@ -15,26 +66,137 @@ const KIT_PARTS = [
   ...CARS.map((n) => `train-carriage-${n}`),
   ...HOUSES,
 ];
+// Models added later come straight from the Kenney pack (1.8x smaller than the ones already in the game)
+const isSmallKit = (n: string) => /double|diesel-box|locomotive-passenger|tank-large/.test(n) || n === 'train-carriage-flatbed';
+// Extra single models (public/models/extra/)
+const EXTRA_BUILDINGS: [string, 'city'][] = [
+  ['city-big', 'city'],
+  ['city-brown', 'city'],
+  ['city-green', 'city'],
+  ['city-red', 'city'],
+  ['kay-building', 'city'],
+  ['kenney-small', 'city'],
+];
 
-/** Light Kenney models (1 mesh each, ~1000 triangles). Returns undefined if anything fails -> old models are used. */
-async function loadKit(gl: GLTFLoader): Promise<Kit | undefined> {
+// Kenney City Kit (Commercial + Industrial) buildings: public/models/commercial/ and public/models/industrial/
+const CITY_KIT_BUILDINGS: string[] = [
+  ...['a', 'b', 'd', 'e', 'g', 'i', 'k', 'm', 'skyscraper-a', 'skyscraper-c'].map((n) => `commercial/building-${n}`),
+  ...['a', 'c', 'e', 'g', 'i', 'k', 'm', 'o'].map((n) => `industrial/building-${n}`),
+];
+
+/** Roadside trees (public/models/trees/): two from tree.glb + one fir. Any file that fails is skipped. */
+async function loadTrees(gl: GLTFLoader): Promise<Prepped[]> {
+  const out: Prepped[] = [];
   try {
-    const parts: Record<string, THREE.Object3D> = {};
-    await Promise.all(
-      KIT_PARTS.map(async (n) => {
-        const g = await gl.loadAsync(`models/kit/${n}.glb`);
-        parts[n] = g.scene;
-      }),
-    );
-    return { parts, houses: HOUSES.map((n) => parts[n]) };
+    const g = await gl.loadAsync('models/trees/tree.glb');
+    // the file holds two trees side by side: split them into two models
+    for (const drop of ['Tree 2', 'Tree 1']) {
+      const s = g.scene.clone(true);
+      s.getObjectByName(drop)?.removeFromParent();
+      const h0 = prep(s, 1).h;
+      out.push(prep(s, 5.5 / h0));
+    }
   } catch (e) {
-    console.warn('[Assets] kit models failed, using old models', e);
+    console.warn('[Assets] tree.glb missing', e);
+  }
+  try {
+    const tl = new THREE.TextureLoader();
+    const [bark, branch] = await Promise.all([tl.loadAsync('models/trees/bark.jpg'), tl.loadAsync('models/trees/branch.png')]);
+    bark.colorSpace = branch.colorSpace = THREE.SRGBColorSpace;
+    const obj = await new OBJLoader().loadAsync('models/trees/fir.obj');
+    obj.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      const fixed = mats.map((mt) =>
+        /bark|trunk/i.test(mt.name)
+          ? new THREE.MeshLambertMaterial({ map: bark })
+          : new THREE.MeshLambertMaterial({ map: branch, alphaTest: 0.4, side: THREE.DoubleSide }),
+      );
+      m.material = Array.isArray(m.material) ? fixed : fixed[0];
+    });
+    const h0 = prep(obj, 1).h;
+    out.push(prep(obj, 5.5 / h0));
+  } catch (e) {
+    console.warn('[Assets] fir missing', e);
+  }
+  return out;
+}
+
+/** Light Kenney models (1 mesh each, ~1000 triangles). Any single file that fails is simply skipped. */
+async function loadKit(gl: GLTFLoader): Promise<Kit | undefined> {
+  const parts: Record<string, THREE.Object3D> = {};
+  await Promise.all(
+    KIT_PARTS.map(async (n) => {
+      try {
+        const g = await gl.loadAsync(`models/kit/${n}.glb`);
+        if (isSmallKit(n)) {
+          const w = new THREE.Group();
+          g.scene.scale.setScalar(1.8);
+          w.add(g.scene);
+          parts[n] = w;
+        } else parts[n] = g.scene;
+      } catch (e) {
+        console.warn('[Assets] kit model missing:', n, e);
+      }
+    }),
+  );
+  const houses = HOUSES.map((n) => parts[n]).filter(Boolean);
+  if (!houses.length || !parts['train-locomotive-a']) {
+    console.warn('[Assets] kit models failed, using old models');
     return undefined;
   }
+  // long trains built from other models (poly carriage, high speed nose)
+  try {
+    const poly = await gl.loadAsync('models/extra/poly-carriage.glb');
+    const p0 = prep(poly.scene, 1);
+    parts['x-poly'] = prep(poly.scene, 2.3 / p0.w).obj;
+  } catch (e) {
+    console.warn('[Assets] poly carriage missing', e);
+  }
+  try {
+    const hs = await gl.loadAsync('models/extra/highspeed-front.glb');
+    // the model is long along x with its nose at -x: turn it so the nose points to +z
+    const h0 = prep(hs.scene, 1, Math.PI / 2);
+    parts['x-hs'] = prep(hs.scene, 2.4 / h0.w, Math.PI / 2).obj;
+  } catch (e) {
+    console.warn('[Assets] high speed front missing', e);
+  }
+  return { parts, houses };
+}
+
+async function loadBuildings(gl: GLTFLoader, kit?: Kit): Promise<BuildingTpl[]> {
+  const out: BuildingTpl[] = [];
+  for (const h of kit?.houses ?? []) out.push({ ...prep(h), kind: 'house' });
+  await Promise.all(
+    EXTRA_BUILDINGS.map(async ([n, kind]) => {
+      try {
+        const g = await gl.loadAsync(`models/extra/${n}.glb`);
+        g.scene.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (m.isMesh) m.frustumCulled = true;
+        });
+        out.push({ ...prep(g.scene), kind });
+      } catch (e) {
+        console.warn('[Assets] building missing:', n, e);
+      }
+    }),
+  );
+  for (const n of CITY_KIT_BUILDINGS) {
+    try {
+      const g = await gl.loadAsync(`models/${n}.glb`);
+      out.push({ ...prep(g.scene), kind: 'city' });
+    } catch (e) {
+      console.warn('[Assets] city kit building missing:', n, e);
+    }
+  }
+  return out;
 }
 
 export interface Assets {
   kit?: Kit;
+  buildings: BuildingTpl[];
+  trees: Prepped[];
   sideGreen: THREE.Texture;
   sideRed: THREE.Texture;
   front: THREE.Texture;
@@ -155,6 +317,7 @@ export async function loadAssets(onProgress: (p: number) => void): Promise<Asset
   // 3D models (optional: the game falls back to the old textured boxes)
   const gl = new GLTFLoader();
   const kit = await loadKit(gl);
+  const buildings = await loadBuildings(gl, kit);
   const skip = { status: 'rejected', reason: 'using kit models' } as PromiseRejectedResult;
   const [tm, bm] = kit
     ? [skip, skip]
@@ -174,6 +337,8 @@ export async function loadAssets(onProgress: (p: number) => void): Promise<Asset
   };
   return {
     kit,
+    buildings,
+    trees: await loadTrees(gl),
     trainModel: prep(tm, 'train'),
     buildingModel: prep(bm, 'building'),
     sideGreen: loaded.sideGreen,

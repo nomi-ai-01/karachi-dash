@@ -70,6 +70,11 @@ class AudioManager {
   swish() {
     this.noise(0.12, 0.08, 2500);
   }
+  /** two-tone train horn (a moving train is coming) */
+  horn() {
+    this.tone(311, 0.45, 'sawtooth', 0.09);
+    this.tone(392, 0.45, 'sawtooth', 0.09);
+  }
   crash() {
     this.noise(0.55, 0.5, 500);
     this.tone(130, 0.5, 'sawtooth', 0.3, 40);

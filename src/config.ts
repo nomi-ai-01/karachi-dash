@@ -15,6 +15,7 @@ export const C = {
   JUMP_V: 10.2,
   SLIDE_T: 1.0,
 
+  FLOOR_Y: 0.2, // top of the sleepers: where the character's feet really stand
   PLAYER_H: 1.7,
   VISUAL_H: 1.85, // drawn height of the boy (hitbox stays PLAYER_H)
   OUTER_TRACKS: false, // decorative side tracks + trains (reference uses 3 tracks only)
